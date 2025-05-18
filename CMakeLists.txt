@@ -45,6 +45,10 @@ target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
 # set(FETCHCONTENT_QUIET OFF)
 # FetchContent_MakeAvailable(gRPC)
 # target_link_libraries(${PROJECT_NAME} grpc++)
+find_package(gRPC REQUIRED)
+target_link_libraries(${PROJECT_NAME} gRPC::grpc++)
+find_package(Protobuf REQUIRED)
+target_link_libraries(${PROJECT_NAME} protobuf::libprotobuf)
 
 
 # compiler options

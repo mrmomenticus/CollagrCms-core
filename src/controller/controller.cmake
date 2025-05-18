@@ -1,0 +1,7 @@
+list( APPEND COLLAGRCMS_INCLUDE
+        ${CMAKE_CURRENT_LIST_DIR}/
+)
+list( APPEND COLLAGRCMS_SOURCE
+        ${CMAKE_CURRENT_LIST_DIR}/controller.cpp
+)
+

@@ -1,0 +1,4 @@
+include( ${CMAKE_CURRENT_LIST_DIR}/core/core.cmake )
+include( ${CMAKE_CURRENT_LIST_DIR}/publisher/publisher.cmake )
+include( ${CMAKE_CURRENT_LIST_DIR}/subscriber/subscriber.cmake )
+include( ${CMAKE_CURRENT_LIST_DIR}/controller/controller.cmake )

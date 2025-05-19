@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 4.0)
 
 project(collagrcms_core VERSION 0.1.0 LANGUAGES C CXX)
 
@@ -34,17 +34,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         )
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
 
-#grpc protobuf
-
-# FetchContent_Declare(
-#         grpc
-#         GIT_REPOSITORY https://github.com/grpc/grpc.git
-#         GIT_TAG v1.72.0
-#         GIT_SHALLOW TRUE
-# )
-# set(FETCHCONTENT_QUIET OFF)
-# FetchContent_MakeAvailable(gRPC)
-# target_link_libraries(${PROJECT_NAME} grpc++)
+# grpc
 find_package(gRPC REQUIRED)
 target_link_libraries(${PROJECT_NAME} gRPC::grpc++)
 find_package(Protobuf REQUIRED)
@@ -57,3 +47,55 @@ target_compile_features( ${PROJECT_NAME}
     cxx_std_23
 )
 
+# tests
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.8.1 # or a later release
+)
+
+FetchContent_MakeAvailable(Catch2)
+
+
+
+
+# tests
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.8.1 # or a later release
+)
+
+FetchContent_MakeAvailable(Catch2)
+include(${CMAKE_CURRENT_LIST_DIR}/tests/test.cmake)
+# Create test executable
+add_executable(test_${PROJECT_NAME}
+    tests/test.cpp
+    ${test_${PROJECT_NAME}-source}
+    ${COLLAGRCMS_SOURCE} # Add program sources directly
+)
+
+
+
+# Include directories for tests
+target_include_directories(
+    test_${PROJECT_NAME}
+    PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/
+    ${COLLAGRCMS_INCLUDE}
+)
+
+# Link only with external libraries (NOT with ${PROJECT_NAME}_lib!)
+target_link_libraries(test_${PROJECT_NAME} 
+    PRIVATE 
+    Catch2::Catch2WithMain
+    ${OpenCV_LIBS}
+    gRPC::grpc++
+    protobuf::libprotobuf
+)
+
+target_compile_features(
+    test_${PROJECT_NAME}
+    PRIVATE
+    cxx_std_23
+)

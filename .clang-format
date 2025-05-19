@@ -1,0 +1,46 @@
+# Базовый стиль Google с модификациями
+BasedOnStyle: Google
+
+# Основные настройки отступов и форматирования
+IndentWidth: 4                      # Ширина отступа (количество пробелов)
+TabWidth: 4                         # Ширина табуляции
+UseTab: Never                       # Не использовать табуляцию, только пробелы
+ColumnLimit: 100                    # Ограничение длины строки
+MaxEmptyLinesToKeep: 1              # Максимальное количество пустых строк подряд
+
+# Выравнивание
+AlignAfterOpenBracket: Align        # Выравнивание после открывающей скобки
+AlignConsecutiveMacros: true        # Выравнивание последовательных макросов
+AlignConsecutiveAssignments: true   # Выравнивание последовательных присваиваний
+AlignConsecutiveDeclarations: true  # Выравнивание последовательных объявлений
+AlignOperands: true                 # Выравнивание операндов
+AlignTrailingComments: true         # Выравнивание комментариев в конце строки
+
+# Отступы
+AccessModifierOffset: -2            # Отступ для модификаторов доступа (public, private)
+NamespaceIndentation: None          # Без отступов для пространств имен
+IndentCaseLabels: true              # Отступы для меток case в switch
+
+# Переносы строк и скобки
+BreakBeforeBraces: Allman           # Стиль расположения скобок (новая строка перед {)
+AllowShortIfStatementsOnASingleLine: false  # Запрет коротких if на одной строке
+AllowShortLoopsOnASingleLine: false  # Запрет коротких циклов на одной строке
+AllowShortFunctionsOnASingleLine: Empty  # Разрешить только пустые функции на одной строке
+BreakBeforeTernaryOperators: true   # Перенос строки перед тернарным оператором
+
+# Пробелы
+SpaceAfterCStyleCast: false         # Без пробела после C-style приведения типа
+SpaceBeforeAssignmentOperators: true  # Пробел перед оператором присваивания
+SpaceBeforeParens: ControlStatements  # Пробел перед скобками только в управляющих конструкциях
+SpaceInEmptyParentheses: false      # Без пробелов в пустых скобках
+SpacesInParentheses: false          # Без пробелов внутри скобок
+SpacesInSquareBrackets: false       # Без пробелов внутри квадратных скобок
+SpacesInContainerLiterals: false    # Без пробелов в литералах контейнеров
+
+# Включения и сортировка
+SortIncludes: true                  # Сортировка включаемых файлов
+IncludeBlocks: Preserve             # Сохранение блоков включений
+PointerAlignment: Left              # Выравнивание указателей и ссылок слева
+
+# Дополнительные настройки
+FixNamespaceComments: true          # Добавление комментариев в конце пространства имен

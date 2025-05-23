@@ -24,12 +24,14 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(spdlog)
 
 find_package(OpenCV REQUIRED)
-find_package(gRPC REQUIRED)
-find_package(Protobuf REQUIRED)
+# find_package(gRPC REQUIRED)
+# find_package(Protobuf REQUIRED)
 message(STATUS "OpenCV_LIBS: ${OpenCV_LIBS}" "OpenCV include" ${OpenCV_INCLUDE_DIRS})  
 target_include_directories(${PROJECT_NAME} PRIVATE ${OPENCV_INCLUDE_DIRS})
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} gRPC::grpc++ protobuf::libprotobuf spdlog::spdlog)
-message("OpenCV Version ${OpenCV_VERSION}, gRPC Version ${gRPC_VERSION}, Protobuf Version ${Protobuf_VERSION} , spdlog Version ${spdlog_VERSION}")
+# target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} gRPC::grpc++ protobuf::libprotobuf spdlog::spdlog)
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} spdlog::spdlog)
+# message("OpenCV Version ${OpenCV_VERSION}, gRPC Version ${gRPC_VERSION}, Protobuf Version ${Protobuf_VERSION} , spdlog Version ${spdlog_VERSION}")
+message("OpenCV Version ${OpenCV_VERSION}, spdlog Version ${spdlog_VERSION}")
 
 # SOURCES
 target_sources( ${PROJECT_NAME}

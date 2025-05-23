@@ -29,7 +29,7 @@ find_package(Protobuf REQUIRED)
 message(STATUS "OpenCV_LIBS: ${OpenCV_LIBS}" "OpenCV include" ${OpenCV_INCLUDE_DIRS})  
 target_include_directories(${PROJECT_NAME} PRIVATE ${OPENCV_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} gRPC::grpc++ protobuf::libprotobuf spdlog::spdlog)
-message("OpenCV Version ${OpenCV_VERSION}, gRPC Version ${gRPC_VERSION}, Protobuf Version ${Protobuf_VERSION} , spdlog Version ${spdlog_VERSION}")
+message("OpenCV Version ${OpenCV_VERSION}, gRPC Version ${gRPC_VERSION}, Protobuf Version ${Protobuf_VERSION}")
 
 # SOURCES
 target_sources( ${PROJECT_NAME}

@@ -24,7 +24,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pacman -S --noconfirm cmake gcc opencv protobuf grpc
+          pacman -S --noconfirm cmake gcc opencv protobuf grpc vtk hdf5
 
       - name: Configure CMake
         run: cmake -S . -B build

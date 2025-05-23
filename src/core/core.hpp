@@ -13,6 +13,6 @@ public:
     ImageCreated & operator=(ImageCreated &&) = delete;
 
     
-    const std::string_view create(std::list<std::string_view> &images);
+    const std::string_view create(std::list<std::string_view> &images, const std::string &outputPath);
 
 };

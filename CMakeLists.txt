@@ -13,6 +13,24 @@ target_compile_features(
 target_compile_options( ${PROJECT_NAME} 
     PRIVATE -Wall)
 
+
+# LIBRARIES
+include(FetchContent)
+FetchContent_Declare(
+  spdlog
+  GIT_REPOSITORY https://github.com/gabime/spdlog.git
+  GIT_TAG        v1.15.3 # or a later release
+)
+FetchContent_MakeAvailable(spdlog)
+
+find_package(OpenCV REQUIRED)
+find_package(gRPC REQUIRED)
+find_package(Protobuf REQUIRED)
+message(STATUS "OpenCV_LIBS: ${OpenCV_LIBS}" "OpenCV include" ${OpenCV_INCLUDE_DIRS})  
+target_include_directories(${PROJECT_NAME} PRIVATE ${OPENCV_INCLUDE_DIRS})
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} gRPC::grpc++ protobuf::libprotobuf spdlog::spdlog)
+message("OpenCV Version ${OpenCV_VERSION}, gRPC Version ${gRPC_VERSION}, Protobuf Version ${Protobuf_VERSION} , spdlog Version ${spdlog_VERSION}")
+
 # SOURCES
 target_sources( ${PROJECT_NAME}
     PRIVATE
@@ -25,18 +43,6 @@ target_include_directories( ${PROJECT_NAME}
     PRIVATE
     ${COLLAGRCMS_INCLUDE}
 )
-# LIBRARIES
-include(FetchContent)
-find_package(OpenCV REQUIRED)
-find_package(gRPC REQUIRED)
-find_package(Protobuf REQUIRED)
-
-include_directories( ${OpenCV_INCLUDE_DIRS} )
-link_directories(${OpenCV_LINK_DIRS})
-
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} gRPC::grpc++ protobuf::libprotobuf)
-message("OpenCV Version ${OpenCV_Version}, gRPC Version ${gRPC_VERSION}, Protobuf Version ${Protobuf_VERSION}")
-
 
 # TESTS
 FetchContent_Declare(
@@ -58,12 +64,14 @@ target_include_directories(
     test_${PROJECT_NAME}
     PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/
-    ${COLLAGRCMS_INCLUDE}         
+    ${COLLAGRCMS_INCLUDE}
+    ${OPENCV_INCLUDE_DIRS}
 )
 
 target_link_libraries(test_${PROJECT_NAME} 
     PRIVATE 
     Catch2::Catch2WithMain
+    ${OpenCV_LIBS} gRPC::grpc++ protobuf::libprotobuf spdlog::spdlog
 )
 
 target_compile_features(

@@ -1,5 +1,6 @@
 #include <iostream>
+#include "core/core.hpp"
+int main(int, char**)
+{
 
-int main(int, char**){
-    std::cout << "Hello, from collagrcms_core!\n";
 }

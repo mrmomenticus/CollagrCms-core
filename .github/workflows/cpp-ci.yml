@@ -1,4 +1,4 @@
-name: C++ CI
+name: C++ CI (Arch)
 
 on:
   push:
@@ -7,23 +7,63 @@ on:
     branches: [ "**" ]
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
 
+    container:
+      image: archlinux:latest
+
     steps:
+      - name: Install base-devel and git
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel git
+
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ libopencv-dev
+          pacman -S --noconfirm cmake gcc opencv protobuf grpc
 
       - name: Configure CMake
-        run: cmake -S . -B build 
+        run: cmake -S . -B build
 
       - name: Build
         run: cmake --build build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build/
+
+  test:
+    runs-on: ubuntu-latest
+
+    container:
+      image: archlinux:latest
+
+    needs: build
+
+    steps:
+      - name: Install base-devel and git
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel git
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: build/
+
+      - name: Install dependencies
+        run: |
+          pacman -S --noconfirm opencv protobuf grpc
 
       - name: Run tests
         run: |

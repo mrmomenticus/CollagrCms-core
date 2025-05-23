@@ -73,7 +73,8 @@ target_include_directories(
 target_link_libraries(test_${PROJECT_NAME} 
     PRIVATE 
     Catch2::Catch2WithMain
-    ${OpenCV_LIBS} gRPC::grpc++ protobuf::libprotobuf spdlog::spdlog
+    ${OpenCV_LIBS} spdlog::spdlog
+    # gRPC::grpc++ protobuf::libprotobuf 
 )
 
 target_compile_features(

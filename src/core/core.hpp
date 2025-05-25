@@ -1,5 +1,5 @@
 #pragma once
-
+#include "image.hpp"
 #include <list>
 #include <string_view>
 class ImageCreated final 
@@ -13,6 +13,6 @@ public:
     ImageCreated & operator=(ImageCreated &&) = delete;
 
     
-    const std::string_view create(std::list<std::string_view> &images, const std::string &outputPath);
+    const std::string_view create(std::list<Image> &images, const std::string &outputPath);
 
 };

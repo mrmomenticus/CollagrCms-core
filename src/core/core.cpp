@@ -15,8 +15,8 @@ const std::string_view ImageCreated::create(std::list<Image> &images, const std:
     }
 
     // Параметры коллажа
-    const int cellImgWidth  = 800;
-    const int cellImgHeight = 800;  // высота ячейки
+    const int cellImgWidth  = 1200;
+    const int cellImgHeight = 1200;  // высота ячейки
     const int cellWidth     = cellImgWidth;
     const int cellHeight    = cellImgHeight;
     const int cellMargin    = 60;  // отступ между ячейками
@@ -73,7 +73,7 @@ const std::string_view ImageCreated::create(std::list<Image> &images, const std:
         }
 
         // Полупрозрачный белый фон для текста внизу ---
-        int    overlayHeight = 140;  // высота под цену и описание
+        int    overlayHeight = 120;  // высота под цену и описание
         double alpha         = 0.5;  // прозрачность
 
         cv::Mat overlay = cell.clone();
@@ -104,12 +104,12 @@ const std::string_view ImageCreated::create(std::list<Image> &images, const std:
 
         // Цена — первой строкой внизу overlay
         int priceY = cellImgHeight - overlayHeight + 65;  // чуть ниже верхнего края overlay
-        cv::putText(cell, info.price, cv::Point(textMarginX, priceY), cv::FONT_HERSHEY_SIMPLEX,
+        cv::putText(cell, info.price, cv::Point(textMarginX, priceY), cv::FONT_HERSHEY_DUPLEX,
                     priceFontSize, cv::Scalar(65, 65, 65), priceThickness);
 
         // Описание — под ценой, меньшим шрифтом, перенос по строкам
-        int descY = priceY + 55;  // отступ после цены
-        cv::putText(cell, desc, cv::Point(textMarginX, descY), cv::FONT_HERSHEY_SIMPLEX,
+        int descY = priceY + 40;  // отступ после цены
+        cv::putText(cell, desc, cv::Point(textMarginX, descY), cv::FONT_HERSHEY_DUPLEX ,
                     descFontSize, cv::Scalar(40, 40, 40), descThickness);
 
         // Определяем позицию в коллаже с учетом отступов

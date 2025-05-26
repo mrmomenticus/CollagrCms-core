@@ -15,4 +15,5 @@ public:
     
     const std::string_view create(std::list<Image> &images, const std::string &outputPath);
 
+    
 };

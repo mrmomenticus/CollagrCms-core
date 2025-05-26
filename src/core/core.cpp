@@ -5,11 +5,7 @@
 #include <string>
 #include "spdlog/spdlog.h"
 
-// Структура для хранения информации об изображении, цене и описании
-
-
-const std::string_view ImageCreated::create(std::list<Image> &images,
-                                            const std::string    &outputPath)
+const std::string_view ImageCreated::create(std::list<Image> &images, const std::string &outputPath)
 {
     // Проверка количества изображений
     if (images.size() != 9)
@@ -20,14 +16,13 @@ const std::string_view ImageCreated::create(std::list<Image> &images,
 
     // Параметры коллажа
     const int cellImgWidth  = 800;
-    const int cellImgHeight = 500; // высота только для изображения
-    const int cellTextHeight = 220; // увеличенная высота под текст (цену и описание)
-    const int cellWidth      = cellImgWidth;
-    const int cellHeight     = cellImgHeight + cellTextHeight;
-    const int cellMargin     = 60; // отступ между ячейками
+    const int cellImgHeight = 800;  // высота ячейки
+    const int cellWidth     = cellImgWidth;
+    const int cellHeight    = cellImgHeight;
+    const int cellMargin    = 60;  // отступ между ячейками
 
-    const int gridCols      = 3;
-    const int gridRows      = 3;
+    const int gridCols = 3;
+    const int gridRows = 3;
 
     // Итоговые размеры коллажа с учетом отступов
     const int collageWidth  = gridCols * cellWidth + (gridCols + 1) * cellMargin;
@@ -35,7 +30,7 @@ const std::string_view ImageCreated::create(std::list<Image> &images,
 
     // Цвет рамки (BGR)
     cv::Scalar borderColor(126, 100, 126);
-    int borderThickness = 30;
+    int        borderThickness = 30;
 
     // Создаём белый холст
     cv::Mat collage(collageHeight, collageWidth, CV_8UC3, cv::Scalar(61, 3, 53));
@@ -52,61 +47,70 @@ const std::string_view ImageCreated::create(std::list<Image> &images,
             throw std::runtime_error("Не удалось загрузить изображение: " + std::string(info.path));
         }
 
-        // Масштабирование изображения с сохранением пропорций
-        double scale = std::min(
-            static_cast<double>(cellImgWidth) / img.cols,
-            static_cast<double>(cellImgHeight) / img.rows
-        );
-        int newWidth  = static_cast<int>(img.cols * scale);
-        int newHeight = static_cast<int>(img.rows * scale);
+        // Масштабирование изображения на всю ячейку с сохранением пропорций и заполнением фона
+        double scale     = std::max(static_cast<double>(cellImgWidth) / img.cols,
+                                    static_cast<double>(cellImgHeight) / img.rows);
+        int    newWidth  = static_cast<int>(img.cols * scale);
+        int    newHeight = static_cast<int>(img.rows * scale);
 
         cv::Mat resizedImg;
         cv::resize(img, resizedImg, cv::Size(newWidth, newHeight));
 
-        // Создаём ячейку (фон)
-        cv::Mat cell(cellHeight, cellWidth, CV_8UC3, cv::Scalar(230, 230, 250));
+        // Центрируем изображение по горизонтали и вертикали, обрезаем лишнее
+        int      xOffset   = std::max(0, (newWidth - cellImgWidth) / 2);
+        int      yOffset   = std::max(0, (newHeight - cellImgHeight) / 2);
+        int      roiWidth  = std::min(cellImgWidth, resizedImg.cols - xOffset);
+        int      roiHeight = std::min(cellImgHeight, resizedImg.rows - yOffset);
+        cv::Rect roi(xOffset, yOffset, roiWidth, roiHeight);
+        cv::Mat  cell = resizedImg(roi).clone();
 
-        // Центрируем изображение по горизонтали и вертикали в области изображения
-        int xOffset = (cellImgWidth - newWidth) / 2;
-        int yOffset = (cellImgHeight - newHeight) / 2; // теперь по центру по вертикали
-        resizedImg.copyTo(cell(cv::Rect(xOffset, yOffset, newWidth, newHeight)));
-
-        // Нарисовать горизонтальную линию-разделитель между изображением и текстом
-        int lineY = cellImgHeight + 10; // чуть ниже изображения
-        cv::line(cell, cv::Point(0, lineY), cv::Point(cellWidth, lineY), cv::Scalar(180, 180, 180), 10);
-
-        // Ограничиваем описание 300 символами (можно больше, т.к. область увеличена)
-        std::string desc;
-        if (info.description.length() > 120)
+        // Если изображение меньше, чем ячейка, то добавляем белый фон
+        if (roiWidth < cellImgWidth || roiHeight < cellImgHeight)
         {
-            spdlog::warn("Описание слишком длинное, обрезано.");
-            desc = info.description.substr(0, 120);
-            desc += "...";
+            cv::Mat padded(cellImgHeight, cellImgWidth, cell.type(), cv::Scalar(255, 255, 255));
+            cell.copyTo(padded(cv::Rect(0, 0, roiWidth, roiHeight)));
+            cell = padded;
         }
-        else {
+
+        // Полупрозрачный белый фон для текста внизу ---
+        int    overlayHeight = 140;  // высота под цену и описание
+        double alpha         = 0.5;  // прозрачность
+
+        cv::Mat overlay = cell.clone();
+        // Нарисовать overlay внизу
+        cv::rectangle(overlay, cv::Point(0, cellImgHeight - overlayHeight),
+                      cv::Point(cellImgWidth, cellImgHeight), cv::Scalar(255, 255, 255),
+                      cv::FILLED);
+        cv::addWeighted(overlay, alpha, cell, 1 - alpha, 0, cell);
+
+        // Ограничиваем описание 120 символами
+        std::string desc;
+        if (info.description.length() > 50)
+        {
+            spdlog::warn("{}: Описание слишком длинное, обрезано.", info.path);
+            desc = info.description.substr(0, 50);
+        }
+        else
+        {
             desc = info.description;
         }
 
-
-        // --- Сначала цена (крупно и жирно), потом описание (мелко) ---
-        int textMargin = 30;
-        int priceFontSize = 2;
+        // Цена (жирно), затем описание (мелко), оба на белом фоне внизу ---
+        int textMarginX    = 30;
+        int priceFontSize  = 2;
         int priceThickness = 2;
-        int descFontSize = 1;
-        int descThickness = 2;
+        int descFontSize   = 1;
+        int descThickness  = 2;
 
-        // Цена — крупно и жирно, первой строкой
-        int priceY = cellImgHeight + textMargin + 50; // чуть ниже линии
-        cv::putText(cell, info.price, cv::Point(20, priceY), cv::FONT_HERSHEY_SIMPLEX, priceFontSize, cv::Scalar(20, 20, 20), priceThickness);
+        // Цена — первой строкой внизу overlay
+        int priceY = cellImgHeight - overlayHeight + 65;  // чуть ниже верхнего края overlay
+        cv::putText(cell, info.price, cv::Point(textMarginX, priceY), cv::FONT_HERSHEY_SIMPLEX,
+                    priceFontSize, cv::Scalar(65, 65, 65), priceThickness);
 
         // Описание — под ценой, меньшим шрифтом, перенос по строкам
-        int descY = priceY + 60; // отступ после цены
-        int maxLineLen = 40; // можно больше, т.к. область шире
-        for (size_t start = 0; start < desc.size(); start += maxLineLen) {
-            std::string line = desc.substr(start, maxLineLen);
-            cv::putText(cell, line, cv::Point(20, descY), cv::FONT_HERSHEY_SIMPLEX, descFontSize, cv::Scalar(5, 5, 5), descThickness);
-            descY += 28;
-        }
+        int descY = priceY + 55;  // отступ после цены
+        cv::putText(cell, desc, cv::Point(textMarginX, descY), cv::FONT_HERSHEY_SIMPLEX,
+                    descFontSize, cv::Scalar(40, 40, 40), descThickness);
 
         // Определяем позицию в коллаже с учетом отступов
         int row = idx / gridCols;

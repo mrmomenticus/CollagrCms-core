@@ -8,25 +8,26 @@ on:
 
 jobs:
   test:
-    runs-on: archlinux:latest
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
+    - name: Install dependencies
+      run: |
+        sudo apt install -y uv
+        uv sync 
 
-      - name: Install dependencies
-        run: |
-          sudo apt install -y uv
-          uv sync 
+    - name: Run tests and save log
+      run: |
+        set -o pipefail
+        uv run tests/core/test_image_collage.py 2>&1 | tee test-log.txt
 
-      - name: Run tests and save log
-        run: |
-          set -o pipefail
-          uv run tests/core/test_image_collage.py 2>&1 | tee test-log.txt
-
-      - name: Upload test log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-log
-          path: test-log.txt
+    - name: Upload test log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-log
+        path: test-log.txt

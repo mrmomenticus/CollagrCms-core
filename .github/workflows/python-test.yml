@@ -15,6 +15,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Setup pacman
+      run: | 
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm base-devel git
+
     - name: Install dependencies
       run: |
         pacman -S uv --noconfirm

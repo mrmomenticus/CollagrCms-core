@@ -17,7 +17,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        sudo apt install -y uv
+        pacman -S uv --noconfirm
         uv sync 
 
     - name: Run tests and save log

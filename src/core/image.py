@@ -1,6 +1,6 @@
 from typing import NamedTuple
 
-class ImageInfo(NamedTuple):
+class Image(NamedTuple):
     """Информация об изображении для коллажа"""
     path: str
     price: str

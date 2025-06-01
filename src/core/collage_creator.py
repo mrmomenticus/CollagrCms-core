@@ -3,12 +3,9 @@ import glob
 from typing import List
 from PIL import Image, ImageDraw, ImageFont
 import logging
-from .image_info import ImageInfo
+from src.core.image import Image
+from src.core.font import Font
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 class CollageCreator:
     """Класс для создания коллажа из изображений с текстом"""
@@ -29,33 +26,8 @@ class CollageCreator:
         self.desc_font_size = 48
         self.price_color = (65, 65, 65)
         self.desc_color = (40, 40, 40)
-        self.font_family = self._get_font()
+        self.font_family = self.Font()
 
-    def _get_font(self) -> str:
-        cyrillic_font_patterns = [
-            "Liberation*", "DejaVu*", "Noto*", "Ubuntu*", "Roboto*", "Open*Sans*", "PT*", "Fira*", "Source*", "Droid*", "Arial*", "Helvetica*",
-        ]
-        font_dirs = [
-            "/usr/share/fonts/truetype/", "/usr/share/fonts/TTF/", "/usr/share/fonts/opentype/", "/usr/share/fonts/type1/", "/usr/share/fonts/",
-        ]
-        for font_dir in font_dirs:
-            if not os.path.exists(font_dir):
-                continue
-            for pattern in cyrillic_font_patterns:
-                for ext in ["ttf", "otf", "TTF", "OTF"]:
-                    search_pattern = os.path.join(font_dir, "**", f"*{pattern}*.{ext}")
-                    fonts = glob.glob(search_pattern, recursive=True)
-                    regular_fonts = [f for f in fonts if "Regular" in f or "regular" in f]
-                    if regular_fonts:
-                        font_path = regular_fonts[0]
-                        logger.info(f"Найден шрифт с поддержкой кириллицы: {font_path}")
-                        return font_path
-                    elif fonts:
-                        font_path = fonts[0]
-                        logger.info(f"Найден шрифт с поддержкой кириллицы: {font_path}")
-                        return font_path
-        logger.warning("Не найден шрифт с поддержкой кириллицы в /usr/share/fonts/, используется встроенный шрифт")
-        return None
 
     def _get_font_object(self, size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
         if self.font_family:
@@ -66,7 +38,7 @@ class CollageCreator:
                         return ImageFont.truetype(bold_font, size)
                 return ImageFont.truetype(self.font_family, size)
             except Exception as e:
-                logger.warning(f"Ошибка загрузки шрифта: {e}")
+                logging.warning(f"Ошибка загрузки шрифта: {e}")
         return ImageFont.load_default()
 
     def _resize_image_to_cell(self, img: Image.Image) -> Image.Image:
@@ -84,7 +56,9 @@ class CollageCreator:
         ))
         return cropped
 
-    def _add_text_overlay(self, img: Image.Image, price: str, description: str) -> Image.Image:
+    def _add_text_overlay(
+        self, img: Image.Image, price: str, description: str
+    ) -> Image.Image:
         img_with_overlay = img.copy()
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
@@ -93,14 +67,18 @@ class CollageCreator:
             [(0, overlay_y), (self.cell_img_width, self.cell_img_height)],
             fill=(255, 255, 255, self.overlay_alpha),
         )
-        img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+        img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert(
+            "RGB"
+        )
         draw = ImageDraw.Draw(img_with_overlay)
         price_font = self._get_font_object(self.price_font_size, bold=True)
         desc_font = self._get_font_object(self.desc_font_size)
         price_y = self.cell_img_height - self.overlay_height + 10
-        draw.text((self.text_margin_x, price_y), price, font=price_font, fill=self.price_color)
+        draw.text(
+            (self.text_margin_x, price_y), price, font=price_font, fill=self.price_color
+        )
         if len(description) > 120:
-            logger.warning(f"Описание слишком длинное, обрезано: {description[:20]}...")
+            logging.warning(f"Описание слишком длинное, обрезано: {description[:20]}...")
             description = description[:120]
         desc_y = price_y + self.price_font_size + 10
         self._draw_multiline_text(
@@ -114,7 +92,16 @@ class CollageCreator:
         )
         return img_with_overlay
 
-    def _draw_multiline_text(self, draw: ImageDraw.Draw, text: str, position, font, color, max_width, line_spacing=5):
+    def _draw_multiline_text(
+        self,
+        draw: ImageDraw.Draw,
+        text: str,
+        position,
+        font,
+        color,
+        max_width,
+        line_spacing=5,
+    ):
         words = text.split()
         lines = []
         current_line = []
@@ -136,7 +123,7 @@ class CollageCreator:
             line_height = bbox[3] - bbox[1]
             y += line_height + line_spacing
 
-    def create(self, images: List[ImageInfo], output_path: str) -> str:
+    def create(self, images: List[Image], output_path: str) -> str:
         if len(images) != 9:
             raise ValueError("Требуется ровно 9 элементов для коллажа 3x3")
         collage_width = (
@@ -169,8 +156,8 @@ class CollageCreator:
                 y = row * self.cell_img_height + (row + 1) * self.cell_margin
                 collage.paste(cell_img, (x, y))
             except Exception as e:
-                logger.error(f"Ошибка при обработке изображения {img_info.path}: {e}")
+                logging.error(f"Ошибка при обработке изображения {img_info.path}: {e}")
                 raise
         collage.save(output_path, "JPEG", quality=95)
-        logger.info(f"Коллаж сохранён в {output_path}")
+        logging.info(f"Коллаж сохранён в {output_path}")
         return output_path

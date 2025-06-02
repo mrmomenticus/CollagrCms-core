@@ -37,8 +37,8 @@ class CollageCreator:
         return cropped
 
     def create(self, images: List[ImageInfo], output_path: str) -> str:
-        if len(images) != 9:
-            raise ValueError("Требуется ровно 9 элементов для коллажа 3x3")
+        if len(images) != (self._grid_cols * self._grid_rows):
+            raise ValueError(f"Требуется ровно {(self._grid_cols * self._grid_rows)}")
         collage_width = (
             self._grid_cols * self._cell_img_width
             + (self._grid_cols + 1) * self._cell_margin

@@ -1,7 +1,7 @@
-from typing import NamedTuple
+from pydantic import BaseModel
 
 
-class ImageInfo(NamedTuple):
+class ImageInfo(BaseModel):
     """Информация об изображении для коллажа"""
 
     path: str

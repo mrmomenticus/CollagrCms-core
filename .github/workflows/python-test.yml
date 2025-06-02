@@ -22,9 +22,9 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pacman -S uv --noconfirm
+        pacman -S uv ttf-roboto --noconfirm 
         uv sync 
 
-    - name: Run tests and save log
+    - name: Run tests 
       run: |
         uv run -m pytest

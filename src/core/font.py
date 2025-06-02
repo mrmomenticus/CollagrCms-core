@@ -1,10 +1,9 @@
 import logging
+import os
 from pathlib import Path
 from typing import List
-
-from src.utils.exeptions import (
-    NotFound
-)
+from PIL import ImageFont
+from src.utils.exeptions import NotFound
 
 
 class Font:
@@ -78,3 +77,15 @@ class Font:
             "Не найден шрифт с поддержкой кириллицы в /usr/share/fonts/, используется встроенный шрифт"
         )
         raise NotFound("Font with Cyrillic support not found.")
+
+    def get_font_object(self, size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+        if self._font:
+            try:
+                if bold and self._font.endswith("-Regular.ttf"):
+                    bold_font = self._font.replace("-Regular.ttf", "-Bold.ttf")
+                    if os.path.exists(bold_font):
+                        return ImageFont.truetype(bold_font, size)
+                return ImageFont.truetype(self._font, size)
+            except Exception as e:
+                logging.warning(f"Ошибка загрузки шрифта: {e}")
+        raise NotFound("Сouldn't load the font")

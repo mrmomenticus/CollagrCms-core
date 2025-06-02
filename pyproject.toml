@@ -1,7 +1,7 @@
 [project]
 name = "collagrcms"
 version = "0.1.0"
-description = "Add your description here"
+description = "Backend service"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -9,6 +9,7 @@ dependencies = [
     "pillow>=11.2.1",
     "pydantic>=2.11.5",
     "pytest>=8.3.5",
+    "sqlalchemy>=2.0.41",
     "uvicorn>=0.34.3",
 ]
 

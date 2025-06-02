@@ -1,7 +1,7 @@
 import logging
 from PIL import Image, ImageDraw
 from src.core.font import Font
-from src.core.image_info import ImageInfo
+from src.models.image_info import ImageInfo
 
 
 class Overlay:

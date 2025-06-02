@@ -1,6 +1,6 @@
 import os
 import pytest
-from src.core.image_info import ImageInfo
+from src.models.image_info import ImageInfo
 from src.core.collage_creator import CollageCreator
 
 

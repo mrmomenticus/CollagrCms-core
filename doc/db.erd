@@ -156,7 +156,7 @@
         "tableId": "wVoLwVMmINe_RvTeVCvAj",
         "name": "category",
         "comment": "",
-        "dataType": "ENUM",
+        "dataType": "VARCHAR",
         "default": "",
         "options": 0,
         "ui": {
@@ -167,7 +167,7 @@
           "widthDefault": 60
         },
         "meta": {
-          "updateAt": 1748887735910,
+          "updateAt": 1748974612194,
           "createAt": 1748887623664
         }
       },

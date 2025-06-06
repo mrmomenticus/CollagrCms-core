@@ -1,7 +1,7 @@
 from typing import List
 from PIL import Image, ImageDraw
 import logging
-from src.schema.image_info import ImageInfo
+from src.schema.models import ImageInfo
 from src.core.overlay import Overlay
 
 

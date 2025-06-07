@@ -2,8 +2,8 @@ import asyncpg
 from typing import Optional
 
 
-class Database:
-    _instance: Optional["Database"] = None
+class DatabaseConnection:
+    _instance: Optional["DatabaseConnection"] = None
     _pool: Optional[asyncpg.Pool] = None
 
     def __new__(cls):
@@ -25,5 +25,11 @@ class Database:
             raise RuntimeError("Database connection not initialized")
         return self._pool
 
+    async def execute_query(self, query: str, *args, **kwargs) -> str:
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            return await conn.execute(query, *args, **kwargs)
 
-db = Database()
+
+# Синглтон
+db = DatabaseConnection()

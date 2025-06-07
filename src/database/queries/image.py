@@ -4,4 +4,3 @@ from src.database.connection import db
 
 class ImageQueries:
     pass
- 

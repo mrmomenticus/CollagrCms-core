@@ -2,7 +2,7 @@ import asyncio
 import logging
 from src.database.connection import db
 from src.database.queries.base import BaseQueries
-from src.database.schema import SchemaManager
+from src.database.init_db import InitDatabase
 from src.utils.config import config
 
 
@@ -34,7 +34,7 @@ async def main():
     
     # Initialize database connection
     await db.connect(create_url())
-    schema = SchemaManager()
+    schema = InitDatabase()
     await schema.initialize()
     
     # try:

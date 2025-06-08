@@ -1,11 +1,10 @@
 import logging
 from pathlib import Path
-from typing import List, Set
-import asyncpg
+from typing import Set
 from .connection import db
 
 
-class SchemaManager:
+class InitDatabase:
     def __init__(self):
         self.sql_dir = Path(__file__).parent.parent / "database" / "sql"
         self.schema_file = self.sql_dir / "init.sql"

@@ -1,6 +1,8 @@
 import asyncio
 import logging
 from src.database.connection import db
+from src.database.queries.base import BaseQueries
+from src.database.schema import SchemaManager
 from src.utils.config import config
 
 
@@ -32,6 +34,8 @@ async def main():
     
     # Initialize database connection
     await db.connect(create_url())
+    schema = SchemaManager()
+    await schema.initialize()
     
     # try:
     #     # Create FastAPI application

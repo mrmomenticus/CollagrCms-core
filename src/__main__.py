@@ -4,7 +4,7 @@ import logging
 import uvicorn
 from src.database.connection import db
 from src.database.queries.base import BaseQueries
-from src.database.init_db import InitDatabase
+from src.database.queries.init_db import InitDatabase
 from src.utils.config import config
 from src.routers.api import api
 
@@ -16,6 +16,7 @@ def setup_logging():
     )
 
 
+# TODO: вынести
 def create_url() -> str:
     db_config = config.get_database_config()
     return (
@@ -24,34 +25,33 @@ def create_url() -> str:
     )
 
 
-async def main():
-    # Setup logging
+async def async_main():
     setup_logging()
-
-    # Load configuration
     config.load()
 
-    # Initialize database connection
+    # Инициализация базы данных
     await db.connect(create_url())
     schema = InitDatabase()
     await schema.initialize()
 
-    # try:
-    #     # Create FastAPI application
+    try:
+        server_config = config.get_server_config()
+        server = uvicorn.Server(
+            config=uvicorn.Config(
+                "src.routers.api:api",
+                host=server_config.get("host", "0.0.0.0"),
+                port=server_config.get("port", 8000),
+                log_level="debug" if server_config.get("debug", False) else "info",
+            )
+        )
+        await server.serve()
+    finally:
+        await db.close()
 
-    #     # Get server configuration
-    #     server_config = config.get_server_config()
 
-    #     # Run the server
-    #     uvicorn.run(
-    #         "",
-    #         host=server_config.get("host", "0.0.0.0"),
-    #         port=server_config.get("port", 8000),
-    #         log_level="debug" if server_config.get("debug", False) else "info",
-    #     )
-    # finally:
-    #     await db.close()
+def main():
+    asyncio.run(async_main())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

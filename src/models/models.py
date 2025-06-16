@@ -12,4 +12,4 @@ class Product(BaseModel):
     description: str
     category: str
     price: int
-    
+    image_path: str

@@ -3,6 +3,7 @@ from typing import Annotated, List
 import uuid
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 
+from src.database.queries.product import ProductQueries
 from src.models.models import Product
 from src.utils.file import create_path, create_uuid, created_file
 
@@ -24,17 +25,15 @@ async def create_product(
         await created_file(image, path)
     else:
         raise HTTPException(status_code=400, detail="Invalid file name")
-    # Создаем объект продукта
     product_data = Product(
-        name=name, description=description, category=category, price=price
+        name=name,
+        description=description,
+        category=category,
+        price=price,
+        image_path=path,
     )
 
-    # Здесь сохраняем продукт в БД
-    # Пример:
-    # product_id = save_to_database(product_data, main_image_path)
+    product_db = ProductQueries()
+    await product_db.add_product(product_data)
 
-    return {
-        "product": product_data,
-        "uuid": uuid,
-        "path": path
-    }
+    return {"product": product_data, "uuid": uuid, "path": path}

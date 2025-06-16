@@ -30,6 +30,12 @@ class DatabaseConnection:
         async with pool.acquire() as conn:
             return await conn.execute(query, *args, **kwargs)
 
+    async def execute_in_transaction(self, query: str, *args) -> str:
+        pool = await self.get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                return await conn.execute(query, *args)
+
 
 # Синглтон
 db = DatabaseConnection()

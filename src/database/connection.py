@@ -1,10 +1,19 @@
-import asyncpg
-from typing import Optional
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import AsyncAdaptedQueuePool
+from typing import Optional, AsyncGenerator, Callable, TypeVar, Awaitable
+from contextlib import asynccontextmanager
+from functools import wraps
+
+
+from src.database.schema.base import Base
+
+T = TypeVar("T")
 
 
 class DatabaseConnection:
     _instance: Optional["DatabaseConnection"] = None
-    _pool: Optional[asyncpg.Pool] = None
+    _engine = None
+    _async_session = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -12,29 +21,56 @@ class DatabaseConnection:
         return cls._instance
 
     async def connect(self, dsn: str):
-        if self._pool is None:
-            self._pool = await asyncpg.create_pool(dsn)
+        if self._engine is None:
+            self._engine = create_async_engine(
+                dsn,
+                poolclass=AsyncAdaptedQueuePool,
+                pool_size=5,
+                max_overflow=10,
+                pool_timeout=30,
+                pool_recycle=1800,
+            )
+            self._async_session = async_sessionmaker(
+                self._engine, class_=AsyncSession, expire_on_commit=False
+            )
 
     async def close(self):
-        if self._pool:
-            await self._pool.close()
-            self._pool = None
+        if self._engine:
+            await self._engine.dispose()
+            self._engine = None
+            self._async_session = None
 
-    async def get_pool(self) -> asyncpg.Pool:
-        if not self._pool:
-            raise RuntimeError("Database connection not initialized")
-        return self._pool
+    @asynccontextmanager
+    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+        """Context manager for database sessions"""
+        if not self._async_session:
+            raise RuntimeError("База данных не подключена")
 
-    async def execute_query(self, query: str, *args, **kwargs) -> str:
-        pool = await self.get_pool()
-        async with pool.acquire() as conn:
-            return await conn.execute(query, *args, **kwargs)
+        async with self._async_session() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                raise e
 
-    async def execute_in_transaction(self, query: str, *args) -> str:
-        pool = await self.get_pool()
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                return await conn.execute(query, *args)
+    def with_session(
+        self, func: Callable[..., Awaitable[T]]
+    ) -> Callable[..., Awaitable[T]]:
+        """Декоратор для автоматического управления сессией"""
+
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            async with self.get_session() as session:
+                return await func(session, *args, **kwargs)
+
+        return wrapper
+
+    async def init_database(self) -> None:
+        if not self._engine:
+            raise RuntimeError("База данных не подключена")
+        async with self._engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
 
 # Синглтон

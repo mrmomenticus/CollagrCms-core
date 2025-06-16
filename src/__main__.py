@@ -1,12 +1,8 @@
 import asyncio
 import logging
-
 import uvicorn
 from src.database.connection import db
-from src.database.queries.base import BaseQueries
-from src.database.queries.init_db import InitDatabase
 from src.utils.config import config
-from src.routers.api import api
 
 
 def setup_logging():
@@ -16,11 +12,10 @@ def setup_logging():
     )
 
 
-# TODO: вынести
 def create_url() -> str:
     db_config = config.get_database_config()
     return (
-        f"{db_config['type']}://{db_config['user']}:{db_config['password']}@"
+        f"postgresql+asyncpg://{db_config['user']}:{db_config['password']}@"
         f"{db_config['host']}:{db_config['port']}/{db_config['name']}"
     )
 
@@ -31,8 +26,7 @@ async def async_main():
 
     # Инициализация базы данных
     await db.connect(create_url())
-    schema = InitDatabase()
-    await schema.initialize()
+    await db.init_database()
 
     try:
         server_config = config.get_server_config()

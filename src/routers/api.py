@@ -1,9 +1,5 @@
-import os
-from typing import Annotated, List
-import uuid
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
-
-from src.database.queries.product import ProductQueries
+from src.database.repository.product import ProductRepository
 from src.models.models import Product
 from src.utils.file import create_path, create_uuid, created_file
 
@@ -32,8 +28,5 @@ async def create_product(
         price=price,
         image_path=path,
     )
-
-    product_db = ProductQueries()
-    await product_db.add_product(product_data)
-
+    await ProductRepository.create(product_data)
     return {"product": product_data, "uuid": uuid, "path": path}

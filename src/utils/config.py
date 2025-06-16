@@ -32,10 +32,12 @@ class Config:
 
     def load(self) -> None:
         self.parse_args()  # Убедимся, что аргументы распарсены
-        
-        if not self._args or not hasattr(self._args, 'config'):
-            raise ValueError("Configuration file path not provided. Use -c or --config option.")
-            
+
+        if not self._args or not hasattr(self._args, "config"):
+            raise ValueError(
+                "Configuration file path not provided. Use -c or --config option."
+            )
+
         try:
             with open(self._args.config, "r") as f:
                 self._config = yaml.safe_load(f)

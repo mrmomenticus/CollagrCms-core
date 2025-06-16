@@ -5,3 +5,4 @@ output
 .venv
 __pycache__
 cfg/config.yml
+files

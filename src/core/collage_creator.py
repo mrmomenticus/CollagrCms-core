@@ -28,14 +28,12 @@ class CollageCreator:
         resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
         x_offset = max(0, (new_width - self._cell_img_width) // 2)
         y_offset = max(0, (new_height - self._cell_img_height) // 2)
-        cropped = resized.crop(
-            (
-                x_offset,
-                y_offset,
-                x_offset + self._cell_img_width,
-                y_offset + self._cell_img_height,
-            )
-        )
+        cropped = resized.crop((
+            x_offset,
+            y_offset,
+            x_offset + self._cell_img_width,
+            y_offset + self._cell_img_height,
+        ))
         return cropped
 
     def create(self, images: List[ImageInfo], output_path: str) -> str:

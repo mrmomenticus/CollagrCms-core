@@ -11,4 +11,5 @@ class Product(BaseModel):
     name: str
     description: str
     category: str
-    price: str
+    price: int
+    

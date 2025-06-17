@@ -8,7 +8,7 @@ from src.utils.config import config
 def setup_logging():
     logging.basicConfig(
         level=logging.DEBUG,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        format="%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d %(funcName)s %(message)s",
     )
 
 
@@ -36,6 +36,7 @@ async def async_main():
                 host=server_config.get("host", "0.0.0.0"),
                 port=server_config.get("port", 8000),
                 log_level="debug" if server_config.get("debug", False) else "info",
+                reload=True
             )
         )
         await server.serve()

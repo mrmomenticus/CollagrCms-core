@@ -8,8 +8,13 @@ class ImageInfo(BaseModel):
 
 
 class Product(BaseModel):
+    id: int
     name: str
     description: str
     category: str
     price: int
     image_path: str
+
+
+class ImagesList(BaseModel):
+    images: list

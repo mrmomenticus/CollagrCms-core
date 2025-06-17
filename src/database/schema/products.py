@@ -1,4 +1,6 @@
 from sqlalchemy.orm import Mapped, mapped_column
+
+from src.database.schema.images import ImagesDb
 from .base import BaseModel
 
 
@@ -9,4 +11,5 @@ class ProductDb(BaseModel):
     description: Mapped[str] = mapped_column(nullable=True)
     category: Mapped[str] = mapped_column(nullable=True)
     price: Mapped[int] = mapped_column(nullable=False)
-    image_path: Mapped[str] = mapped_column(nullable=True)
+
+    image: Mapped["ImagesDb"] = mapped_column(back_populates="product")

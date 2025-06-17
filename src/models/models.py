@@ -1,10 +1,9 @@
 from pydantic import BaseModel
 
 
-class ImageInfo(BaseModel):
+class Image(BaseModel):
+    id: int
     path: str
-    price: str
-    description: str
 
 
 class Product(BaseModel):
@@ -13,7 +12,7 @@ class Product(BaseModel):
     description: str
     category: str
     price: int
-    image_path: str
+    image_path: Image
 
 
 class ImagesList(BaseModel):

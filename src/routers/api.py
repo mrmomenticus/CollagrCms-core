@@ -1,8 +1,9 @@
 import logging
 from typing import List
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
-from src.database.repository.product import ProductRepository
-from src.models.models import ImagesList, Product
+from src.database.repository.images import ImagesRepository
+from src.database.repository.products import ProductRepository
+from src.models.models import Image, ImagesList, Product
 from src.utils.file import create_path, create_uuid, created_file
 
 
@@ -29,10 +30,10 @@ async def create_product(
         description=description,
         category=category,
         price=price,
-        image_path=path,
+        image_path=Image(id=0, path=path),
     )
     try:
-        await ProductRepository.create(product_data)
+        await ProductRepository.add(product_data)
         return {"product": product_data, "uuid": uuid, "path": path}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error creating product") from e
@@ -49,7 +50,7 @@ async def get_products():
                 description=product.description,
                 category=product.category,
                 price=product.price,
-                image_path=product.image_path,
+                image_path=Image(id=product.image.id, path=product.image.path),
             )
             for product in products
         ]
@@ -63,12 +64,13 @@ async def get_products():
 @api.get("/getImages/")
 async def get_images():
     try:
-        images_path = await ProductRepository.get_all_image()
-        return {"images": images_path}
+        image = await ImagesRepository.get_all_image()
+        return {"images": image}
     except Exception as e:
         logging.error(e)
         raise HTTPException(status_code=500, detail="Error getting images") from e
     
 # @api.post("/createCollage/")
 # async def create_collage(images_list: ImagesList):
+    
     

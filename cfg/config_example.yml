@@ -1,0 +1,23 @@
+database:
+  # Пользователь и пароль вынесены в env DB_USER и DB_PASSWORD
+  type: 
+  host: localhost
+  port: 5432
+  name: postgres
+  user: postgres
+  password: postgres
+  echo: false # включить логирование базы данных
+  
+logger:
+  level: "DEBUG" # уровень логирования
+  path: "logs" # путь для логирования
+  file_write: true # включить запись лог в файл
+  rotate: 10 # периодичность логирования
+  max_bytes: 100000 # максимальный размер лога
+  backup_count: 3 # количество сохраняемых логов
+  format_full: false # короткий формат выводит только время-уровень-сообщение, полезен в общих чертах без детализации
+
+server:
+  host: 0.0.0.0
+  port: 8000
+  debug: true

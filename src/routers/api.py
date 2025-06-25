@@ -3,7 +3,7 @@ from typing import List
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from src.database.repository.images import ImagesRepository
 from src.database.repository.products import ProductRepository
-from src.models.models import Image, ImagesList, Product
+from src.models.models import Image, Product
 from src.utils.file import create_path, create_uuid, created_file
 
 
@@ -24,17 +24,13 @@ async def create_product(
         await created_file(image, path)
     else:
         raise HTTPException(status_code=400, detail="Invalid file name")
-    product_data = Product(
-        id=0,
-        name=name,
-        description=description,
-        category=category,
-        price=price,
-        image_path=Image(id=0, path=path),
+    product_model = Product(
+        name=name, description=description, category=category, price=price
     )
     try:
-        await ProductRepository.add(product_data)
-        return {"product": product_data, "uuid": uuid, "path": path}
+        product_db = await ProductRepository.add(product_model)
+        image_db = await ImagesRepository.add(product_db.id, path)
+        return {"product": product_model, "image": image_db}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error creating product") from e
 
@@ -42,20 +38,8 @@ async def create_product(
 @api.get("/getProducts/")
 async def get_products():
     try:
-        products = await ProductRepository.get_all()
-        product_models: List[Product] = [
-            Product(
-                id=product.id,
-                name=product.name,
-                description=product.description,
-                category=product.category,
-                price=product.price,
-                image_path=Image(id=product.image.id, path=product.image.path),
-            )
-            for product in products
-        ]
-
-        return {"products": product_models}
+        products_db = await ProductRepository.get_all()
+        return {"products": products_db}
     except Exception as e:
         logging.error(e)
         raise HTTPException(status_code=500, detail="Error getting products") from e
@@ -64,13 +48,16 @@ async def get_products():
 @api.get("/getImages/")
 async def get_images():
     try:
-        image = await ImagesRepository.get_all_image()
-        return {"images": image}
+        images_db = await ImagesRepository.get_all()
+        return {"images": images_db}
     except Exception as e:
         logging.error(e)
         raise HTTPException(status_code=500, detail="Error getting images") from e
-    
-# @api.post("/createCollage/")
-# async def create_collage(images_list: ImagesList):
-    
-    
+
+
+@api.post("/createCollage/")
+async def create_collage(images_list: list[Image]):
+    list_id = [image.id for image in images_list]
+    images_db = await ImagesRepository.get_all_with_id(list_id)
+    product_db = await ProductRepository.get_all_with_images(images_db)
+    return {"products": product_db}

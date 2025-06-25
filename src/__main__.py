@@ -36,7 +36,7 @@ async def async_main():
                 host=server_config.get("host", "0.0.0.0"),
                 port=server_config.get("port", 8000),
                 log_level="debug" if server_config.get("debug", False) else "info",
-                reload=True
+                reload=True,
             )
         )
         await server.serve()

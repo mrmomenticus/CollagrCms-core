@@ -7,12 +7,12 @@ from src.database.connection import db
 
 
 class ImagesRepository:
-
     @staticmethod
     @db.with_session
-    async def add(session, new_image: Image):
+    async def add(session, product_id: int, path: str) -> ImagesDb:
         image = ImagesDb()
-        image.path = new_image.path
+        image.path = path
+        image.product_id = product_id
         try:
             session.add(image)
             await session.commit()
@@ -20,13 +20,25 @@ class ImagesRepository:
             logging.error(e)
             await session.rollback()
             raise e
-        
+        return image
+
     @staticmethod
     @db.with_session
-    async def get_all_image(session):
+    async def get_all(session):
         try:
             result = await session.execute(select(ImagesDb))
             return result.scalars().all()
         except Exception as e:
             logging.error(e)
             raise e
+        
+    @staticmethod
+    @db.with_session
+    async def get_all_with_id(session, list_id: list[int]):
+        try:
+            result = await session.execute(select(ImagesDb).where(ImagesDb.id.in_(list_id)))
+            return result.scalars().all()
+        except Exception as e:
+            logging.error(e)
+            raise e
+        

@@ -1,6 +1,4 @@
-from sqlalchemy.orm import Mapped, mapped_column
-
-from src.database.schema.images import ImagesDb
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .base import BaseModel
 
 
@@ -12,4 +10,6 @@ class ProductDb(BaseModel):
     category: Mapped[str] = mapped_column(nullable=True)
     price: Mapped[int] = mapped_column(nullable=False)
 
-    image: Mapped["ImagesDb"] = mapped_column(back_populates="product")
+    image: Mapped["ImagesDb"] = relationship(
+        "ImagesDb", back_populates="product", uselist=False
+    )  # noqa: F821

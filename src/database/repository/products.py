@@ -4,6 +4,7 @@ from src.database.connection import db
 from src.database.schema.images import ImagesDb
 from src.models.models import Product
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 
 class ProductRepository:
@@ -34,14 +35,3 @@ class ProductRepository:
             logging.error(e)
             raise e
 
-    @staticmethod
-    @db.with_session
-    async def get_all_with_images(session, images: list[ImagesDb]):
-        try:
-            result = await session.execute(
-                select(ProductDb).join(ImagesDb, ProductDb.id == ImagesDb.product_id)
-            )
-            return result.scalars().all()
-        except Exception as e:
-            logging.error(e)
-            raise e

@@ -2,8 +2,8 @@ import logging
 
 from sqlalchemy import select
 from src.database.schema.images import ImagesDb
-from src.models.models import Image
 from src.database.connection import db
+from sqlalchemy.orm import joinedload
 
 
 class ImagesRepository:
@@ -34,9 +34,9 @@ class ImagesRepository:
         
     @staticmethod
     @db.with_session
-    async def get_all_with_id(session, list_id: list[int]):
+    async def get_by_ids_with_products(session, list_id: list[int]):
         try:
-            result = await session.execute(select(ImagesDb).where(ImagesDb.id.in_(list_id)))
+            result = await session.execute(select(ImagesDb).options(joinedload(ImagesDb.product)).where(ImagesDb.id.in_(list_id)))
             return result.scalars().all()
         except Exception as e:
             logging.error(e)

@@ -1,7 +1,7 @@
 import logging
 from PIL import Image, ImageDraw
 from src.core.font import Font
-from src.models.models import ImageInfo
+from src.models.models import ImageWithProduct
 
 
 class Overlay:
@@ -18,7 +18,9 @@ class Overlay:
         self._desc_color = (40, 40, 40)
         self._font = Font()
 
-    def add_text_overlay(self, img: Image.Image, img_info: ImageInfo) -> Image.Image:
+    def add_text_overlay(
+        self, img: Image.Image, img_model: ImageWithProduct
+    ) -> Image.Image:
         img_with_overlay = img.copy()
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
@@ -36,13 +38,13 @@ class Overlay:
         price_y = self._collag_height - self._overlay_height + 10
         draw.text(
             (self._text_margin_x, price_y),
-            img_info.price,
+            str(img_model.product.price) + " ₽",
             font=price_font,
             fill=self._price_color,
         )
-        if len(img_info.description) > self._max_size_text:
-            logging.warning(f"Описание слишком длинное, обрезано: {img_info.path}")
-        description = img_info.description[: self._max_size_text]
+        if len(img_model.product.description) > self._max_size_text:
+            logging.warning(f"Описание слишком длинное, обрезано: {img_model.path}")
+        description = str(img_model.product.description)[: self._max_size_text]
         desc_y = price_y + self._price_font_size + 10
         self._draw_multiline_text(
             draw,

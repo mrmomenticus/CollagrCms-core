@@ -23,3 +23,8 @@ async def created_file(image: UploadFile, file_path: str):
             buffer.write(chunk)
     await image.close()
     return
+
+
+async def delete_file(file_path: str):
+    if os.path.exists(file_path):
+        os.remove(file_path)

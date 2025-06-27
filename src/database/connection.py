@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 from typing import Optional, AsyncGenerator, Callable, TypeVar, Awaitable
@@ -42,7 +43,6 @@ class DatabaseConnection:
 
     @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
-        """Context manager for database sessions"""
         if not self._async_session:
             raise RuntimeError("База данных не подключена")
 
@@ -57,7 +57,6 @@ class DatabaseConnection:
     def with_session(
         self, func: Callable[..., Awaitable[T]]
     ) -> Callable[..., Awaitable[T]]:
-        """Декоратор для автоматического управления сессией"""
 
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -70,6 +69,7 @@ class DatabaseConnection:
         if not self._engine:
             raise RuntimeError("База данных не подключена")
         async with self._engine.begin() as conn:
+            logging.info("Создание базы данных")
             await conn.run_sync(Base.metadata.create_all)
 
 

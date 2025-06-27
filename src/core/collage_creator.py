@@ -1,8 +1,8 @@
 from typing import List
 from PIL import Image, ImageDraw
 import logging
-from src.models.models import ImageInfo
 from src.core.overlay import Overlay
+from src.models.models import ImageWithProduct
 
 
 class CollageCreator:
@@ -36,8 +36,8 @@ class CollageCreator:
         ))
         return cropped
 
-    def create(self, images: List[ImageInfo], output_path: str) -> str:
-        if len(images) != (self._grid_cols * self._grid_rows):
+    def create(self, image_models: list[ImageWithProduct], output_path: str) -> str:
+        if len(image_models) != (self._grid_cols * self._grid_rows):
             raise ValueError(f"Требуется ровно {(self._grid_cols * self._grid_rows)}")
         collage_width = (
             self._grid_cols * self._cell_img_width
@@ -56,18 +56,18 @@ class CollageCreator:
                 [(i, i), (collage_width - 1 - i, collage_height - 1 - i)],
                 outline=self._border_color,
             )
-        for idx, img_info in enumerate(images):
+        for idx, img_model in enumerate(image_models):
             try:
-                img = Image.open(img_info.path)
+                img = Image.open(img_model.path)
                 cell_img = self._resize_image_to_cell(img)
-                cell_img = self._overlay.add_text_overlay(cell_img, img_info)
+                cell_img = self._overlay.add_text_overlay(cell_img, img_model)
                 row = idx // self._grid_cols
                 col = idx % self._grid_cols
                 x = col * self._cell_img_width + (col + 1) * self._cell_margin
                 y = row * self._cell_img_height + (row + 1) * self._cell_margin
                 collage.paste(cell_img, (x, y))
             except Exception as e:
-                logging.error(f"Ошибка при обработке изображения {img_info.path}: {e}")
+                logging.error(f"Ошибка при обработке изображения {img_model.path}: {e}")
                 raise
         collage.save(output_path, "JPEG", quality=95)
         logging.info(f"Коллаж сохранён в {output_path}")

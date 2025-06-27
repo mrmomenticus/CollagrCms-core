@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from sqlalchemy import select
 from src.database.schema.images import ImagesDb
@@ -42,3 +43,24 @@ class ImagesRepository:
             logging.error(e)
             raise e
         
+    @staticmethod
+    @db.with_session
+    async def get_all_with_products(session) -> List[ImagesDb]:
+        try:
+            result = await session.execute(
+                select(ImagesDb).options(joinedload(ImagesDb.product))
+            )
+            return result.scalars().all()
+        except Exception as e:
+            logging.error(f"Error in get_all_with_products: {e}")
+            raise
+        
+    @staticmethod
+    @db.with_session
+    async def get_by_id(session, image_id: int) -> ImagesDb:
+        try:
+            result = await session.execute(select(ImagesDb).where(ImagesDb.id == image_id))
+            return result.scalars().first()
+        except Exception as e:
+            logging.error(e)
+            raise

@@ -1,10 +1,10 @@
 import logging
+from src.database.schema.images import ImagesDb
 from src.database.schema.products import ProductDb
 from src.database.connection import db
-from src.database.schema.images import ImagesDb
 from src.models.models import Product
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
 
 class ProductRepository:
@@ -34,4 +34,5 @@ class ProductRepository:
         except Exception as e:
             logging.error(e)
             raise e
+        
 

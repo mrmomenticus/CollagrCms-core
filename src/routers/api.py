@@ -1,6 +1,6 @@
 import logging
 from typing import List
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException, status, Query
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, status, Query, Request
 from fastapi.responses import FileResponse
 from src.core.collage_creator import CollageCreator
 from src.database.repository.images import ImagesRepository
@@ -43,22 +43,20 @@ async def create_product(
         raise HTTPException(status_code=500, detail="Error creating product")  # noqa: B904
 
 
-@api.get("/products/", response_model=List[Product])
-async def get_products():
+@api.get("/products/", response_model=List[ImageWithProduct])
+async def get_products(request: Request):
     try:
-        return await ProductRepository.get_all()
+        image_db = await ImagesRepository.get_all_with_products()
+        base_url = str(request.base_url).rstrip("/")
+        result = []
+        for img in image_db:
+            model = ImageWithProduct.model_validate(img)
+            model.path = f"{base_url}/media/{img.id}"
+            result.append(model)
+        return result
     except Exception as e:
         logging.error(f"Error getting products: {e}")
         raise HTTPException(status_code=500, detail="Error getting products")  # noqa: B904
-
-
-@api.get("/images/", response_model=List[ImageWithProduct])
-async def get_images():
-    try:
-        return await ImagesRepository.get_all()
-    except Exception as e:
-        logging.error(f"Error getting images: {e}")
-        raise HTTPException(status_code=500, detail="Error getting images")  # noqa: B904
 
 
 @api.get("/collage/")
@@ -73,3 +71,11 @@ async def create_collage(list_id: List[int] = Query(..., min_length=9, max_lengt
     except Exception as e:
         logging.error(f"Error creating collage: {e}")
         raise HTTPException(status_code=500, detail="Error creating collage")  # noqa: B904
+
+
+@api.get("/media/{image_id}")
+async def get_image(image_id: int):
+    image = await ImagesRepository.get_by_id(image_id)
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image.path, media_type="image/jpeg")

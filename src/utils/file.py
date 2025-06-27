@@ -12,7 +12,7 @@ async def create_uuid(filename: str) -> str:
 
 
 async def create_path(filename: str) -> str:
-    return os.path.join("files", filename)
+    return os.path.join(f"{os.getcwd()}/files", filename)
 
 
 async def created_file(image: UploadFile, file_path: str):

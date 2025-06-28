@@ -60,14 +60,38 @@ async def get_products(request: Request):
 
 
 @api.get("/collage/")
-async def create_collage(list_id: List[int] = Query(..., min_length=9, max_length=9)):  # noqa: B008
-    if len(list_id) != 9:  # TODO: Заменить из конфига
-        raise HTTPException(status_code=422, detail="Invalid count of images")
+async def create_collage(list_id: List[int] = Query(..., min_length=1, max_length=9)):  # noqa: B008
+    """
+    Создает коллаж из выбранных изображений.
+    
+    Args:
+        list_id: Список ID изображений (от 1 до 9)
+        
+    Returns:
+        Файл коллажа в формате JPEG
+    """
+    if len(list_id) < 1 or len(list_id) > 9:
+        raise HTTPException(
+            status_code=422, 
+            detail=f"Количество изображений должно быть от 1 до 9, получено: {len(list_id)}"
+        )
     try:
         images_db: List[ImagesDb] = await ImagesRepository.get_by_ids_with_products(list_id)
+        
+        # Проверяем, что все изображения найдены
+        if len(images_db) != len(list_id):
+            found_ids = [img.id for img in images_db]
+            missing_ids = [img_id for img_id in list_id if img_id not in found_ids]
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Изображения с ID {missing_ids} не найдены"
+            )
+        
         image_models: List[ImageWithProduct] = [ImageWithProduct.model_validate(img) for img in images_db]
         collag = CollageCreator().create(image_models, "collage.jpg")
         return FileResponse(collag, media_type="image/jpeg", filename="collage.jpg")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error creating collage: {e}")
         raise HTTPException(status_code=500, detail="Error creating collage")  # noqa: B904

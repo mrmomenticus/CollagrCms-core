@@ -32,17 +32,33 @@ class ImagesRepository:
         except Exception as e:
             logging.error(e)
             raise e
-        
+
     @staticmethod
     @db.with_session
-    async def get_by_ids_with_products(session, list_id: list[int]):
+    async def get_by_ids_with_products(
+        session,
+        list_id_images: list[int] | None = None,
+        list_id_products: list[int] | None = None,
+    ):
         try:
-            result = await session.execute(select(ImagesDb).options(joinedload(ImagesDb.product)).where(ImagesDb.id.in_(list_id)))
-            return result.scalars().all()
+            if list_id_products:
+                result = await session.execute(
+                    select(ImagesDb)
+                    .options(joinedload(ImagesDb.product))
+                    .where(ImagesDb.product_id.in_(list_id_products))
+                )
+                return result.scalars().all()
+            if list_id_images:
+                result = await session.execute(
+                    select(ImagesDb)
+                    .options(joinedload(ImagesDb.product))
+                    .where(ImagesDb.id.in_(list_id_images))
+                )
+                return result.scalars().all()
         except Exception as e:
             logging.error(e)
             raise e
-        
+
     @staticmethod
     @db.with_session
     async def get_all_with_products(session) -> List[ImagesDb]:
@@ -54,12 +70,14 @@ class ImagesRepository:
         except Exception as e:
             logging.error(f"Error in get_all_with_products: {e}")
             raise
-        
+
     @staticmethod
     @db.with_session
     async def get_by_id(session, image_id: int) -> ImagesDb:
         try:
-            result = await session.execute(select(ImagesDb).where(ImagesDb.id == image_id))
+            result = await session.execute(
+                select(ImagesDb).where(ImagesDb.id == image_id)
+            )
             return result.scalars().first()
         except Exception as e:
             logging.error(e)

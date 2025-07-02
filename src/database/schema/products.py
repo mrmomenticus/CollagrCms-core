@@ -11,5 +11,5 @@ class ProductDb(BaseModel):
     price: Mapped[int] = mapped_column(nullable=False)
 
     image: Mapped["ImagesDb"] = relationship(
-        "ImagesDb", back_populates="product", uselist=False
+        "ImagesDb", back_populates="product", uselist=False, cascade="delete"
     )  # noqa: F821

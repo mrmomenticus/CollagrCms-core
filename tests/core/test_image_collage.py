@@ -202,3 +202,43 @@ def test_two_images_collage():
         assert img.size == (4961, 3508), f"Размер должен быть A3 (горизонтальный) (4961x3508), получен: {img.size}"
     
     os.remove(result_path)
+
+
+@pytest.mark.parametrize("image_count", list(range(1, 13)))
+def test_collage_creation_dynamic_sizes(image_count):
+    """Тест создания коллажей с разным количеством изображений (1-12), проверка размеров холста"""
+    images = [
+        create_test_image(i + 1, f"Товар {i + 1}", "Тест", 1000 + i * 100, f"Описание товара {i + 1}")
+        for i in range(image_count)
+    ]
+    output_path = f"test_collage_{image_count}_images.jpg"
+    creator = CollageCreator()
+    result_path = creator.create(images, output_path)
+    assert os.path.exists(result_path)
+    # Проверяем размеры холста
+    cols, rows = creator._calculate_grid_dimensions(image_count)
+    expected_size = (cols * 900, rows * 900)
+    with Image.open(result_path) as img:
+        assert img.size == expected_size, f"Размер коллажа должен быть {expected_size}, получен: {img.size}"
+    os.remove(result_path)
+
+
+def test_grid_calculation_new():
+    """Тест расчета размеров сетки для разного количества изображений (1-12)"""
+    creator = CollageCreator()
+    for image_count in range(1, 13):
+        cols, rows = creator._calculate_grid_dimensions(image_count)
+        assert cols * rows >= image_count
+        assert abs(cols - rows) <= image_count  # сетка максимально квадратная
+
+
+def test_invalid_image_count():
+    """Тест обработки некорректного количества изображений (0 и >12)"""
+    creator = CollageCreator()
+    with pytest.raises(ValueError, match="Количество изображений должно быть больше 0"):
+        creator._calculate_grid_dimensions(0)
+    with pytest.raises(ValueError, match="Количество изображений должно быть от 1 до 12"):
+        creator.create([], "test.jpg")
+    images = [create_test_image(i, f"Товар {i}", "Тест", 1000, f"Описание {i}") for i in range(1, 14)]
+    with pytest.raises(ValueError, match="Количество изображений должно быть от 1 до 12"):
+        creator.create(images, "test.jpg")

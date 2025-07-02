@@ -19,14 +19,22 @@ class Overlay:
         self._font = Font()
 
     def add_text_overlay(
-        self, img: Image.Image, img_model: ImageWithProduct
+        self, img: Image.Image, img_model: ImageWithProduct, img_box=None
     ) -> Image.Image:
         img_with_overlay = img.copy()
+        width, height = img.size
+        # Если передан img_box, используем его для позиционирования overlay
+        if img_box is not None:
+            x_offset, y_offset, img_w, img_h = img_box
+            overlay_top = y_offset + img_h - min(self._overlay_height, img_h)
+            overlay_bottom = y_offset + img_h
+        else:
+            overlay_top = height - min(self._overlay_height, height)
+            overlay_bottom = height
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
-        overlay_y = self._collag_height - self._overlay_height
         draw_overlay.rectangle(
-            [(0, overlay_y), (self._collag_width, self._collag_height)],
+            [(0, overlay_top), (width, overlay_bottom)],
             fill=(255, 255, 255, self._overlay_alpha),
         )
         img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert(
@@ -35,7 +43,7 @@ class Overlay:
         draw = ImageDraw.Draw(img_with_overlay)
         price_font = self._font.get_font_object(self._price_font_size, bold=True)
         desc_font = self._font.get_font_object(self._desc_font_size)
-        price_y = self._collag_height - self._overlay_height + 10
+        price_y = overlay_top + 10
         draw.text(
             (self._text_margin_x, price_y),
             str(img_model.product.price) + " ₽",
@@ -52,7 +60,7 @@ class Overlay:
             (self._text_margin_x, desc_y),
             desc_font,
             self._desc_color,
-            max_width=self._collag_width - 2 * self._text_margin_x,
+            max_width=width - 2 * self._text_margin_x,
             line_spacing=7,
         )
         return img_with_overlay

@@ -34,5 +34,18 @@ class ProductRepository:
         except Exception as e:
             logging.error(e)
             raise e
-        
+    
+    @staticmethod
+    @db.with_session
+    async def delete(session, product_id: int):
+        try:
+            result = await session.execute(select(ProductDb).where(ProductDb.id == product_id))
+            product = result.scalars().first()
+            await session.delete(product)
+            await session.commit()
+        except Exception as e:
+            logging.error(e)
+            await session.rollback()
+            raise e
+
 

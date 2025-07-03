@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from sqlalchemy import select
 from src.database.schema.images import ImagesDb
@@ -39,7 +38,7 @@ class ImagesRepository:
         session,
         list_id_images: list[int] | None = None,
         list_id_products: list[int] | None = None,
-    ):
+    ) -> list[ImagesDb] | None:
         try:
             if list_id_products:
                 result = await session.execute(
@@ -61,7 +60,7 @@ class ImagesRepository:
 
     @staticmethod
     @db.with_session
-    async def get_all_with_products(session) -> List[ImagesDb]:
+    async def get_all_with_products(session) -> list[ImagesDb]:
         try:
             result = await session.execute(
                 select(ImagesDb).options(joinedload(ImagesDb.product))

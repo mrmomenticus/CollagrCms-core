@@ -1,5 +1,4 @@
 import logging
-from typing import List
 from fastapi import (
     FastAPI,
     File,
@@ -9,8 +8,11 @@ from fastapi import (
     status,
     Query,
     Request,
+    Body,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from src.core.collage_creator import CollageCreator
 from src.database.repository.images import ImagesRepository
 from src.database.repository.products import ProductRepository
@@ -52,7 +54,7 @@ async def create_product(
         raise HTTPException(status_code=500, detail="Error creating product")  # noqa: B904
 
 
-@api.get("/products/", response_model=List[ImageWithProduct])
+@api.get("/products/", response_model=list[ImageWithProduct])
 async def get_products(request: Request):
     try:
         image_db = await ImagesRepository.get_all_with_products()
@@ -69,7 +71,7 @@ async def get_products(request: Request):
 
 
 @api.get("/collage/")
-async def create_collage(list_id: List[int] = Query(..., min_length=1, max_length=9)):  # noqa: B008
+async def create_collage(list_id: list[int] = Query(..., min_length=1, max_length=12)):  # noqa: B008
     """
     Создает коллаж из выбранных изображений.
 
@@ -82,13 +84,13 @@ async def create_collage(list_id: List[int] = Query(..., min_length=1, max_lengt
     if len(list_id) < 1 or len(list_id) > 9:
         raise HTTPException(
             status_code=422,
-            detail=f"Количество изображений должно быть от 1 до 9, получено: {len(list_id)}",
+            detail=f"Количество изображений должно быть от 1 до 12, получено: {len(list_id)}",
         )
     try:
         if list_id is not None:
-            images_db: List[ImagesDb] = await ImagesRepository.get_by_ids_with_products(
+            images_db: list[ImagesDb] = await ImagesRepository.get_by_ids_with_products(
                 list_id_images=list_id
-            )
+            )  # type: ignore
 
         # Проверяем, что все изображения найдены
         if len(images_db) != len(list_id):
@@ -98,7 +100,7 @@ async def create_collage(list_id: List[int] = Query(..., min_length=1, max_lengt
                 status_code=404, detail=f"Изображения с ID {missing_ids} не найдены"
             )
 
-        image_models: List[ImageWithProduct] = [
+        image_models: list[ImageWithProduct] = [
             ImageWithProduct.model_validate(img) for img in images_db
         ]
         collag = CollageCreator().create(image_models, "collage.jpg")
@@ -128,3 +130,40 @@ async def delete_product(product_id: int):
     await delete_file(product[0].path)
     await ProductRepository.delete(product_id)
     return {"message": "Product deleted"}
+
+
+# --- Simple Auth Stub ---
+HARDCODED_USERNAME = "admin"
+HARDCODED_PASSWORD = "password123"
+SESSION_TOKEN = "secret-token"
+ALLOWED_PATHS = ["/login"]
+
+
+class SimpleAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        allowed = request.url.path in ALLOWED_PATHS or request.url.path.startswith((
+            "/docs",
+            "/redoc",
+            "/openapi",
+        ))
+        if allowed:
+            return await call_next(request)
+        auth = request.headers.get("Authorization")
+        if (
+            not auth
+            or not auth.startswith("Bearer ")
+            or auth.split(" ", 1)[1] != SESSION_TOKEN
+        ):
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        return await call_next(request)
+
+
+api.add_middleware(SimpleAuthMiddleware)
+# --- End Simple Auth Stub ---
+
+
+@api.post("/login")
+async def login(username: str = Body(...), password: str = Body(...)):
+    if username == HARDCODED_USERNAME and password == HARDCODED_PASSWORD:
+        return {"token": SESSION_TOKEN}
+    return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})

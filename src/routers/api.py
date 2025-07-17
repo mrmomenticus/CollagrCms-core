@@ -34,7 +34,7 @@ async def handle_file_upload(image: UploadFile, tag: str) -> str:
 
 
 @api.post("/products/", status_code=status.HTTP_201_CREATED)
-async def create_product(
+async def post_product(
     name: str = Form(...),
     description: str = Form(...),
     category: str = Form(...),
@@ -50,7 +50,7 @@ async def create_product(
         image_db = await ImagesRepository.add(product_db.id, path)
         return {"image": image_db}
     except Exception as e:
-        logging.error(f"Error creating product: {e}")
+        logging.warning(f"Error creating product: {e}")
         raise HTTPException(status_code=500, detail="Error creating product")  # noqa: B904
 
 
@@ -66,7 +66,7 @@ async def get_products(request: Request):
             result.append(model)
         return result
     except Exception as e:
-        logging.error(f"Error getting products: {e}")
+        logging.warning(f"Error getting products: {e}")
         raise HTTPException(status_code=500, detail="Error getting products")  # noqa: B904
 
 
@@ -116,6 +116,7 @@ async def create_collage(list_id: list[int] = Query(..., min_length=1, max_lengt
 async def get_image(image_id: int):
     image = await ImagesRepository.get_by_id(image_id)
     if not image:
+        logging.warning("Image not found")
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(image.path, media_type="image/jpeg")
 
@@ -126,6 +127,7 @@ async def delete_product(product_id: int):
         list_id_products=[product_id]
     )
     if not product:
+        logging.warning("Product not found")
         raise HTTPException(status_code=404, detail="Product not found")
     await delete_file(product[0].path)
     await ProductRepository.delete(product_id)
@@ -141,6 +143,7 @@ async def put_product(product_id: int, name: str = Form(...), description: str =
 async def put_image(image_id: int, image: UploadFile = File(...)):  # noqa: B008
     image_db = await ImagesRepository.get_by_ids_with_products(list_id_images=[image_id])
     if not image_db:
+        logging.warning("Image not found")
         raise HTTPException(status_code=404, detail="Image not found")
     path = await handle_file_upload(image, image_db[0].product.category)
     await ImagesRepository.update(image_id, path)

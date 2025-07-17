@@ -7,3 +7,4 @@ __pycache__
 cfg/config.yml
 files
 cfg/config.yaml
+logs

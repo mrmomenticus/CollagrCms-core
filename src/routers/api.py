@@ -76,12 +76,12 @@ async def create_collage(list_id: list[int] = Query(..., min_length=1, max_lengt
     Создает коллаж из выбранных изображений.
 
     Args:
-        list_id: Список ID изображений (от 1 до 9)
+        list_id: Список ID изображений (от 1 до 12)
 
     Returns:
         Файл коллажа в формате JPEG
     """
-    if len(list_id) < 1 or len(list_id) > 9:
+    if len(list_id) < 1 or len(list_id) > 12:
         raise HTTPException(
             status_code=422,
             detail=f"Количество изображений должно быть от 1 до 12, получено: {len(list_id)}",
@@ -130,6 +130,22 @@ async def delete_product(product_id: int):
     await delete_file(product[0].path)
     await ProductRepository.delete(product_id)
     return {"message": "Product deleted"}
+
+@api.put("/products/{product_id}")
+async def put_product(product_id: int, name: str = Form(...), description: str = Form(...), category: str = Form(...), price: int = Form(...)):
+    await ProductRepository.update(Product(id=product_id, name=name, description=description, category=category, price=price))
+    return {"message": "Product updated"}
+
+
+@api.put("/media/{image_id}")
+async def put_image(image_id: int, image: UploadFile = File(...)):  # noqa: B008
+    image_db = await ImagesRepository.get_by_ids_with_products(list_id_images=[image_id])
+    if not image_db:
+        raise HTTPException(status_code=404, detail="Image not found")
+    path = await handle_file_upload(image, image_db[0].product.category)
+    await ImagesRepository.update(image_id, path)
+    await delete_file(image_db[0].path)
+    return {"message": "Image updated"}
 
 
 # --- Simple Auth Stub ---

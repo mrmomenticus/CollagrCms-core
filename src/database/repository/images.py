@@ -81,3 +81,16 @@ class ImagesRepository:
         except Exception as e:
             logging.error(e)
             raise
+        
+    @staticmethod
+    @db.with_session
+    async def update(session, image_id: int, path: str):
+        try:
+            result = await session.execute(select(ImagesDb).where(ImagesDb.id == image_id))
+            image = result.scalars().first()
+            image.path = path
+            await session.commit()
+        except Exception as e:
+            logging.error(e)
+            await session.rollback()
+            raise

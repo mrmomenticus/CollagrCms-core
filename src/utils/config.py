@@ -60,6 +60,9 @@ class Config:
     def get_server_config(self) -> Dict[str, Any]:
         return self.get_config().get("server", {})
 
+    def get_logger_config(self) -> Dict[str, Any]:
+        return self.get_config().get("logger", {})
+
 
 # Create a singleton instance
 config = Config()

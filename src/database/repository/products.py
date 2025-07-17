@@ -48,4 +48,19 @@ class ProductRepository:
             await session.rollback()
             raise e
 
+    @staticmethod
+    @db.with_session
+    async def update(session, new_product: Product):
+        try:
+            result = await session.execute(select(ProductDb).where(ProductDb.id == new_product.id))
+            product = result.scalars().first()
+            product.name = new_product.name
+            product.description = new_product.description
+            product.category = new_product.category
+            product.price = new_product.price
+            await session.commit()
+        except Exception as e:
+            logging.error(e)
+            await session.rollback()
+            raise e
 

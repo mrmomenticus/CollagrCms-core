@@ -1,15 +1,8 @@
 import asyncio
-import logging
 import uvicorn
 from src.database.connection import db
 from src.utils.config import config
-
-
-def setup_logging():
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s %(levelname)-8s %(filename)s:%(lineno)d %(funcName)s %(message)s",
-    )
+from src.utils.logs import LoggerConfigurator
 
 
 def create_url() -> str:
@@ -21,9 +14,8 @@ def create_url() -> str:
 
 
 async def async_main():
-    setup_logging()
     config.load()
-
+    LoggerConfigurator().configure()
     # Инициализация базы данных
     await db.connect(create_url())
     await db.init_database()

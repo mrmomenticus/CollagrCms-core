@@ -241,14 +241,11 @@ async def create_batch_collage(
             shutil.copy2(collage_path, tmp_file.name)
             tmp_path = tmp_file.name
         
-        # Удаляем оригинальный файл с диска
-        try:
-            os.remove(collage_path)
-        except Exception as e:
-            logging.warning(f"Could not delete original file {collage_path}: {e}")
+        # Оставляем файл для скачивания (будет очищен позже через /collage/cleanup/)
+        logging.info(f"Created collage: {collage_path}")
         
         # Отправляем файл пользователю для скачивания
-        response = FileResponse(
+        return FileResponse(
             tmp_path, 
             media_type="image/jpeg", 
             filename=collage_filename,
@@ -264,21 +261,6 @@ async def create_batch_collage(
                 "X-Collage-Message": f"Collage {batch_number} of {total_batches} (items {start_index + 1}-{end_index} of {total_images})"
             }
         )
-        
-        # Добавляем callback для удаления временных файлов после отправки
-        @response.background
-        def cleanup_temp_files():
-            try:
-                # Удаляем временный файл
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-                # Удаляем временную папку с коллажами
-                if os.path.exists(temp_collages_dir):
-                    shutil.rmtree(temp_collages_dir)
-            except Exception as e:
-                logging.warning(f"Could not delete temporary files: {e}")
-        
-        return response
         
     except HTTPException:
         raise
@@ -601,25 +583,11 @@ async def download_collage(filename: str):
             shutil.copy2(collage_path, tmp_file.name)
             tmp_path = tmp_file.name
         
-        # Удаляем оригинальный файл с диска
-        try:
-            os.remove(collage_path)
-        except Exception as e:
-            logging.warning(f"Could not delete original file {collage_path}: {e}")
+        # Оставляем файл для скачивания (будет очищен позже через /collage/cleanup/)
+        logging.info(f"Downloading collage: {collage_path}")
         
         # Отправляем файл пользователю
-        response = FileResponse(tmp_path, media_type="image/jpeg", filename=filename)
-        
-        # Добавляем callback для удаления временного файла после отправки
-        @response.background
-        def cleanup_temp_file():
-            try:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-            except Exception as e:
-                logging.warning(f"Could not delete temporary file {tmp_path}: {e}")
-        
-        return response
+        return FileResponse(tmp_path, media_type="image/jpeg", filename=filename)
         
     except HTTPException:
         raise
@@ -668,6 +636,56 @@ async def list_collages():
     except Exception as e:
         logging.error(f"Error listing collages: {e}")
         raise HTTPException(status_code=500, detail="Error listing collages")
+
+
+@api.post("/collage/cleanup/")
+async def cleanup_temp_files():
+    """
+    Очищает временные файлы коллажей.
+    
+    Returns:
+        JSON с результатом очистки
+    """
+    try:
+        import glob
+        
+        # Очищаем временные файлы в /tmp
+        temp_patterns = [
+            "/tmp/collages_*",
+            "/tmp/tmp*",
+            "/tmp/*.jpg",
+            "/tmp/*.zip"
+        ]
+        
+        cleaned_files = []
+        cleaned_dirs = []
+        
+        for pattern in temp_patterns:
+            try:
+                # Удаляем файлы
+                for file_path in glob.glob(pattern):
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        cleaned_files.append(file_path)
+                
+                # Удаляем папки
+                for dir_path in glob.glob(pattern):
+                    if os.path.isdir(dir_path):
+                        shutil.rmtree(dir_path)
+                        cleaned_dirs.append(dir_path)
+            except Exception as e:
+                logging.warning(f"Could not clean pattern {pattern}: {e}")
+        
+        return {
+            "cleaned_files": cleaned_files,
+            "cleaned_directories": cleaned_dirs,
+            "total_cleaned": len(cleaned_files) + len(cleaned_dirs),
+            "message": f"Cleaned {len(cleaned_files)} files and {len(cleaned_dirs)} directories"
+        }
+        
+    except Exception as e:
+        logging.error(f"Error cleaning temp files: {e}")
+        raise HTTPException(status_code=500, detail="Error cleaning temp files")
 
 
 @api.get("/media/{image_id}")

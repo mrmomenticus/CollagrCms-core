@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from fastapi import (
     FastAPI,
     File,
@@ -23,34 +22,8 @@ from src.models.models import ImageWithProduct, Product
 from src.utils.file import create_path, create_uuid, created_file, delete_file
 import os
 import uuid
-
-
-async def cleanup_temp_file_async(file_path: str, delay_seconds: int = 30):
-    """
-    Асинхронно удаляет временный файл через указанное время
-    """
-    await asyncio.sleep(delay_seconds)
-    try:
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            logging.info(f"Temporary file {file_path} deleted successfully")
-    except Exception as e:
-        logging.warning(f"Could not delete temporary file {file_path}: {e}")
-
-
-async def cleanup_temp_directory_async(dir_path: str, delay_seconds: int = 30):
-    """
-    Асинхронно удаляет временную папку через указанное время
-    """
-    await asyncio.sleep(delay_seconds)
-    try:
-        if os.path.exists(dir_path):
-            import shutil
-            shutil.rmtree(dir_path)
-            logging.info(f"Temporary directory {dir_path} deleted successfully")
-    except Exception as e:
-        logging.warning(f"Could not delete temporary directory {dir_path}: {e}")
-
+import tempfile
+import shutil
 
 api = FastAPI(title="CollagrCms", version="0.1.0")
 
@@ -274,12 +247,8 @@ async def create_batch_collage(
         except Exception as e:
             logging.warning(f"Could not delete original file {collage_path}: {e}")
         
-        # Запускаем асинхронную очистку временных файлов
-        asyncio.create_task(cleanup_temp_file_async(tmp_path, 60))  # Удаляем через 60 секунд
-        asyncio.create_task(cleanup_temp_directory_async(temp_collages_dir, 60))  # Удаляем папку через 60 секунд
-        
         # Отправляем файл пользователю для скачивания
-        return FileResponse(
+        response = FileResponse(
             tmp_path, 
             media_type="image/jpeg", 
             filename=collage_filename,
@@ -295,6 +264,21 @@ async def create_batch_collage(
                 "X-Collage-Message": f"Collage {batch_number} of {total_batches} (items {start_index + 1}-{end_index} of {total_images})"
             }
         )
+        
+        # Добавляем callback для удаления временных файлов после отправки
+        @response.background
+        def cleanup_temp_files():
+            try:
+                # Удаляем временный файл
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                # Удаляем временную папку с коллажами
+                if os.path.exists(temp_collages_dir):
+                    shutil.rmtree(temp_collages_dir)
+            except Exception as e:
+                logging.warning(f"Could not delete temporary files: {e}")
+        
+        return response
         
     except HTTPException:
         raise
@@ -421,8 +405,7 @@ async def create_and_download_all_collages(
             raise HTTPException(status_code=404, detail="Товары не найдены")
         
         # Создаем временную папку для коллажей
-        import tempfile
-        import shutil
+
         
         temp_collages_dir = tempfile.mkdtemp(prefix="collages_")
         
@@ -466,9 +449,12 @@ async def create_and_download_all_collages(
             }
         )
         
-        # Запускаем асинхронную очистку временных файлов
-        asyncio.create_task(cleanup_temp_directory_async(temp_collages_dir, 60))  # Удаляем папку через 60 секунд
-        asyncio.create_task(cleanup_temp_file_async(tmp_zip.name, 60))  # Удаляем ZIP через 60 секунд
+        # Удаляем временные файлы сразу после создания
+        try:
+            if os.path.exists(temp_collages_dir):
+                shutil.rmtree(temp_collages_dir)
+        except Exception as e:
+            logging.warning(f"Could not delete temporary directory {temp_collages_dir}: {e}")
         
         return response
         
@@ -621,11 +607,19 @@ async def download_collage(filename: str):
         except Exception as e:
             logging.warning(f"Could not delete original file {collage_path}: {e}")
         
-        # Запускаем асинхронную очистку временного файла
-        asyncio.create_task(cleanup_temp_file_async(tmp_path, 60))  # Удаляем через 60 секунд
-        
         # Отправляем файл пользователю
-        return FileResponse(tmp_path, media_type="image/jpeg", filename=filename)
+        response = FileResponse(tmp_path, media_type="image/jpeg", filename=filename)
+        
+        # Добавляем callback для удаления временного файла после отправки
+        @response.background
+        def cleanup_temp_file():
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception as e:
+                logging.warning(f"Could not delete temporary file {tmp_path}: {e}")
+        
+        return response
         
     except HTTPException:
         raise
@@ -716,38 +710,39 @@ async def put_image(image_id: int, image: UploadFile = File(...)):  # noqa: B008
 
 
 
-# # --- Simple Auth Stub ---
-# HARDCODED_USERNAME = "admin"
-# HARDCODED_PASSWORD = "password123"
-# SESSION_TOKEN = "secret-token"
-# ALLOWED_PATHS = ["/login"]
+
+# --- Simple Auth Stub ---
+HARDCODED_USERNAME = "admin"
+HARDCODED_PASSWORD = "password123"
+SESSION_TOKEN = "secret-token"
+ALLOWED_PATHS = ["/login"]
  
 
-# class SimpleAuthMiddleware(BaseHTTPMiddleware):
-#     async def dispatch(self, request: Request, call_next):
-#         allowed = request.url.path in ALLOWED_PATHS or request.url.path.startswith((
-#             "/docs",
-#             "/redoc",
-#             "/openapi",
-#         ))
-#         if allowed:
-#             return await call_next(request)
-#         auth = request.headers.get("Authorization")
-#         if (
-#             not auth
-#             or not auth.startswith("Bearer ")
-#             or auth.split(" ", 1)[1] != SESSION_TOKEN
-#         ):
-#             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-#         return await call_next(request)
+class SimpleAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        allowed = request.url.path in ALLOWED_PATHS or request.url.path.startswith((
+            "/docs",
+            "/redoc",
+            "/openapi",
+        ))
+        if allowed:
+            return await call_next(request)
+        auth = request.headers.get("Authorization")
+        if (
+            not auth
+            or not auth.startswith("Bearer ")
+            or auth.split(" ", 1)[1] != SESSION_TOKEN
+        ):
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        return await call_next(request)
 
 
-# api.add_middleware(SimpleAuthMiddleware)
-# # --- End Simple Auth Stub ---
+api.add_middleware(SimpleAuthMiddleware)
+# --- End Simple Auth Stub ---
 
 
-# @api.post("/login")
-# async def login(username: str = Body(...), password: str = Body(...)):
-#     if username == HARDCODED_USERNAME and password == HARDCODED_PASSWORD:
-#         return {"token": SESSION_TOKEN}
-#     return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+@api.post("/login")
+async def login(username: str = Body(...), password: str = Body(...)):
+    if username == HARDCODED_USERNAME and password == HARDCODED_PASSWORD:
+        return {"token": SESSION_TOKEN}
+    return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})

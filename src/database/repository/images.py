@@ -2,6 +2,7 @@ import logging
 
 from sqlalchemy import select
 from src.database.schema.images import ImagesDb
+from src.database.schema.products import ProductDb
 from src.database.connection import db
 from sqlalchemy.orm import joinedload
 
@@ -43,17 +44,19 @@ class ImagesRepository:
             if list_id_products:
                 result = await session.execute(
                     select(ImagesDb)
-                    .options(joinedload(ImagesDb.product))
+                    .options(joinedload(ImagesDb.product).joinedload(ProductDb.category))
                     .where(ImagesDb.product_id.in_(list_id_products))
                 )
                 return result.scalars().all()
             if list_id_images:
                 result = await session.execute(
                     select(ImagesDb)
-                    .options(joinedload(ImagesDb.product))
+                    .options(joinedload(ImagesDb.product).joinedload(ProductDb.category))
                     .where(ImagesDb.id.in_(list_id_images))
                 )
                 return result.scalars().all()
+            # Если не переданы ID, возвращаем None
+            return None
         except Exception as e:
             logging.error(e)
             raise e
@@ -63,7 +66,9 @@ class ImagesRepository:
     async def get_all_with_products(session) -> list[ImagesDb]:
         try:
             result = await session.execute(
-                select(ImagesDb).options(joinedload(ImagesDb.product))
+                select(ImagesDb).options(
+                    joinedload(ImagesDb.product).joinedload(ProductDb.category)
+                )
             )
             return result.scalars().all()
         except Exception as e:
@@ -75,7 +80,9 @@ class ImagesRepository:
     async def get_by_id(session, image_id: int) -> ImagesDb:
         try:
             result = await session.execute(
-                select(ImagesDb).where(ImagesDb.id == image_id)
+                select(ImagesDb)
+                .options(joinedload(ImagesDb.product).joinedload(ProductDb.category))
+                .where(ImagesDb.id == image_id)
             )
             return result.scalars().first()
         except Exception as e:

@@ -17,8 +17,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.core.collage_creator import CollageCreator
 from src.database.repository.images import ImagesRepository
 from src.database.repository.products import ProductRepository
+from src.database.repository.categories import CategoryRepository
 from src.database.schema.images import ImagesDb
-from src.models.models import ImageWithProduct, Product
+from src.models.models import ImageWithProduct, Product, Category
 from src.utils.file import create_path, create_uuid, created_file, delete_file
 import os
 import uuid
@@ -50,13 +51,18 @@ async def handle_file_upload(image: UploadFile, tag: str) -> str:
 async def post_product(
     name: str = Form(...),
     description: str = Form(...),
-    category: str = Form(...),
+    category_name: str = Form(...),
     price: int = Form(...),
     image: UploadFile = File(...),  # noqa: B008
 ):
-    path = await handle_file_upload(image, category)
+    # Проверяем существование категории по названию
+    category = await CategoryRepository.get_by_name(category_name)
+    if not category or not category.is_active:
+        raise HTTPException(status_code=400, detail=f"Category '{category_name}' not found or inactive")
+    
+    path = await handle_file_upload(image, category.name)
     product_model = Product(
-        id=0, name=name, description=description, category=category, price=price
+        id=0, name=name, description=description, category_id=category.id, price=price
     )
     try:
         product_db = await ProductRepository.add(product_model)
@@ -81,6 +87,36 @@ async def get_products(request: Request):
     except Exception as e:
         logging.warning(f"Error getting products: {e}")
         raise HTTPException(status_code=500, detail="Error getting products")  # noqa: B904
+
+
+@api.get("/products/with-categories/")
+async def get_products_with_categories(request: Request):
+    """
+    Получает все продукты с полной информацией о категориях.
+    
+    Returns:
+        Список продуктов с информацией о категориях
+    """
+    try:
+        image_db = await ImagesRepository.get_all_with_products()
+        base_url = str(request.base_url).rstrip("/")
+        result = []
+        for img in image_db:
+            product_data = {
+                "id": img.product.id,
+                "name": img.product.name,
+                "description": img.product.description,
+                "price": img.product.price,
+                "category_id": img.product.category_id,
+                "category_name": img.product.category.name if img.product.category else None,
+                "image_id": img.id,
+                "image_path": f"{base_url}/media/{img.id}"
+            }
+            result.append(product_data)
+        return result
+    except Exception as e:
+        logging.warning(f"Error getting products with categories: {e}")
+        raise HTTPException(status_code=500, detail="Error getting products with categories")
 
 
 @api.get("/collage/")
@@ -158,7 +194,8 @@ async def select_all_products():
                 "product_id": img.product_id,
                 "name": img.product.name,
                 "description": img.product.description,
-                "category": img.product.category,
+                "category_id": img.product.category_id,
+                "category_name": img.product.category.name if img.product.category else None,
                 "price": img.product.price,
                 "path": img.path
             })
@@ -325,7 +362,8 @@ async def create_all_batch_collages(
                     "product_id": img.product_id,
                     "name": img.product.name,
                     "description": img.product.description,
-                    "category": img.product.category,
+                    "category_id": img.product.category_id,
+                    "category_name": img.product.category.name if img.product.category else None,
                     "price": img.product.price
                 })
             
@@ -530,7 +568,8 @@ async def get_batch_info(
                 "product_id": img.product_id,
                 "name": img.product.name,
                 "description": img.product.description,
-                "category": img.product.category,
+                "category_id": img.product.category_id,
+                "category_name": img.product.category.name if img.product.category else None,
                 "price": img.product.price
             })
         
@@ -710,8 +749,13 @@ async def delete_product(product_id: int):
     return {"message": "Product deleted"}
 
 @api.put("/products/{product_id}")
-async def put_product(product_id: int, name: str = Form(...), description: str = Form(...), category: str = Form(...), price: int = Form(...)):
-    await ProductRepository.update(Product(id=product_id, name=name, description=description, category=category, price=price))
+async def put_product(product_id: int, name: str = Form(...), description: str = Form(...), category_name: str = Form(...), price: int = Form(...)):
+    # Проверяем существование категории по названию
+    category = await CategoryRepository.get_by_name(category_name)
+    if not category or not category.is_active:
+        raise HTTPException(status_code=400, detail=f"Category '{category_name}' not found or inactive")
+    
+    await ProductRepository.update(Product(id=product_id, name=name, description=description, category_id=category.id, price=price))
     return {"message": "Product updated"}
 
 
@@ -730,37 +774,325 @@ async def put_image(image_id: int, image: UploadFile = File(...)):  # noqa: B008
 
 
 # --- Simple Auth Stub ---
-HARDCODED_USERNAME = "admin"
-HARDCODED_PASSWORD = "password123"
-SESSION_TOKEN = "secret-token"
-ALLOWED_PATHS = ["/login"]
+# HARDCODED_USERNAME = "admin"
+# HARDCODED_PASSWORD = "password123"
+# SESSION_TOKEN = "secret-token"
+# ALLOWED_PATHS = ["/login"]
  
 
-class SimpleAuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        allowed = request.url.path in ALLOWED_PATHS or request.url.path.startswith((
-            "/docs",
-            "/redoc",
-            "/openapi",
-        ))
-        if allowed:
-            return await call_next(request)
-        auth = request.headers.get("Authorization")
-        if (
-            not auth
-            or not auth.startswith("Bearer ")
-            or auth.split(" ", 1)[1] != SESSION_TOKEN
-        ):
-            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-        return await call_next(request)
+# class SimpleAuthMiddleware(BaseHTTPMiddleware):
+#     async def dispatch(self, request: Request, call_next):
+#         allowed = request.url.path in ALLOWED_PATHS or request.url.path.startswith((
+#             "/docs",
+#             "/redoc",
+#             "/openapi",
+#         ))
+#         if allowed:
+#             return await call_next(request)
+#         auth = request.headers.get("Authorization")
+#         if (
+#             not auth
+#             or not auth.startswith("Bearer ")
+#             or auth.split(" ", 1)[1] != SESSION_TOKEN
+#         ):
+#             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+#         return await call_next(request)
 
 
-api.add_middleware(SimpleAuthMiddleware)
-# --- End Simple Auth Stub ---
+# api.add_middleware(SimpleAuthMiddleware)
+# # --- End Simple Auth Stub ---
 
 
-@api.post("/login")
-async def login(username: str = Body(...), password: str = Body(...)):
-    if username == HARDCODED_USERNAME and password == HARDCODED_PASSWORD:
-        return {"token": SESSION_TOKEN}
-    return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+# @api.post("/login")
+# async def login(username: str = Body(...), password: str = Body(...)):
+#     if username == HARDCODED_USERNAME and password == HARDCODED_PASSWORD:
+#         return {"token": SESSION_TOKEN}
+#     return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+
+
+# --- Category Endpoints ---
+
+@api.get("/categories/", response_model=list[Category])
+async def get_categories():
+    """
+    Получает все категории (включая неактивные).
+    
+    Returns:
+        Список всех категорий
+    """
+    try:
+        categories = await CategoryRepository.get_all_including_inactive()
+        return [Category.model_validate(cat) for cat in categories]
+    except Exception as e:
+        logging.error(f"Error getting categories: {e}")
+        raise HTTPException(status_code=500, detail="Error getting categories")
+
+
+@api.get("/categories/simple/")
+async def get_categories_simple():
+    """
+    Получает все категории в упрощенном формате.
+    
+    Returns:
+        Список категорий с id и названием
+    """
+    try:
+        categories = await CategoryRepository.get_all_including_inactive()
+        return [
+            {
+                "id": cat.id,
+                "name": cat.name,
+                "description": cat.description,
+                "is_active": cat.is_active
+            }
+            for cat in categories
+        ]
+    except Exception as e:
+        logging.error(f"Error getting categories: {e}")
+        raise HTTPException(status_code=500, detail="Error getting categories")
+
+
+@api.get("/categories/all/")
+async def get_all_categories():
+    """
+    Получает все категории (включая неактивные).
+    
+    Returns:
+        Список всех категорий с id, названием и статусом активности
+    """
+    try:
+        categories = await CategoryRepository.get_all_including_inactive()
+        return [
+            {
+                "id": cat.id,
+                "name": cat.name,
+                "description": cat.description,
+                "is_active": cat.is_active
+            }
+            for cat in categories
+        ]
+    except Exception as e:
+        logging.error(f"Error getting all categories: {e}")
+        raise HTTPException(status_code=500, detail="Error getting all categories")
+
+
+@api.get("/categories/active/")
+async def get_active_categories():
+    """
+    Получает только активные категории.
+    
+    Returns:
+        Список только активных категорий
+    """
+    try:
+        categories = await CategoryRepository.get_all()
+        return [
+            {
+                "id": cat.id,
+                "name": cat.name,
+                "description": cat.description
+            }
+            for cat in categories
+        ]
+    except Exception as e:
+        logging.error(f"Error getting active categories: {e}")
+        raise HTTPException(status_code=500, detail="Error getting active categories")
+
+
+@api.get("/categories/{category_id}", response_model=Category)
+async def get_category(category_id: int):
+    """
+    Получает категорию по ID.
+    
+    Args:
+        category_id: ID категории
+        
+    Returns:
+        Категория
+    """
+    try:
+        category = await CategoryRepository.get_by_id(category_id)
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        return Category.model_validate(category)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting category: {e}")
+        raise HTTPException(status_code=500, detail="Error getting category")
+
+
+@api.post("/categories/", status_code=status.HTTP_201_CREATED, response_model=Category)
+async def create_category(
+    name: str = Form(...),
+    description: str = Form(None)
+):
+    """
+    Создает новую категорию.
+    
+    Args:
+        name: Название категории
+        description: Описание категории
+        
+    Returns:
+        Созданная категория
+    """
+    try:
+        # Проверяем, что категория с таким именем не существует
+        existing_category = await CategoryRepository.get_by_name(name)
+        if existing_category:
+            raise HTTPException(status_code=400, detail="Category with this name already exists")
+        
+        category = await CategoryRepository.add(name, description)
+        return Category.model_validate(category)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error creating category: {e}")
+        raise HTTPException(status_code=500, detail="Error creating category")
+
+
+@api.put("/categories/{category_id}", response_model=Category)
+async def update_category(
+    category_id: int,
+    name: str = Form(None),
+    description: str = Form(None),
+    is_active: bool = Form(None)
+):
+    """
+    Обновляет категорию.
+    
+    Args:
+        category_id: ID категории
+        name: Новое название категории
+        description: Новое описание категории
+        is_active: Статус активности
+        
+    Returns:
+        Обновленная категория
+    """
+    try:
+        # Проверяем существование категории
+        existing_category = await CategoryRepository.get_by_id(category_id)
+        if not existing_category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        
+        # Если меняем имя, проверяем что новое имя не занято
+        if name and name != existing_category.name:
+            category_with_name = await CategoryRepository.get_by_name(name)
+            if category_with_name:
+                raise HTTPException(status_code=400, detail="Category with this name already exists")
+        
+        await CategoryRepository.update(category_id, name, description, is_active)
+        
+        # Получаем обновленную категорию
+        updated_category = await CategoryRepository.get_by_id(category_id)
+        return Category.model_validate(updated_category)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error updating category: {e}")
+        raise HTTPException(status_code=500, detail="Error updating category")
+
+
+@api.delete("/categories/{category_id}")
+async def delete_category(category_id: int):
+    """
+    Удаляет категорию (мягкое удаление - деактивирует).
+    
+    Args:
+        category_id: ID категории
+        
+    Returns:
+        Сообщение об успешном удалении
+    """
+    try:
+        # Проверяем существование категории
+        existing_category = await CategoryRepository.get_by_id(category_id)
+        if not existing_category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        
+        await CategoryRepository.delete(category_id)
+        return {"message": "Category deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error deleting category: {e}")
+        raise HTTPException(status_code=500, detail="Error deleting category")
+
+
+@api.delete("/categories/{category_id}/hard")
+async def hard_delete_category(category_id: int):
+    """
+    Полностью удаляет категорию из базы данных.
+    
+    Args:
+        category_id: ID категории
+        
+    Returns:
+        Сообщение об успешном удалении
+    """
+    try:
+        # Проверяем существование категории
+        existing_category = await CategoryRepository.get_by_id(category_id)
+        if not existing_category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        
+        await CategoryRepository.hard_delete(category_id)
+        return {"message": "Category permanently deleted"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error hard deleting category: {e}")
+        raise HTTPException(status_code=500, detail="Error hard deleting category")
+
+
+@api.get("/products/by-category/{category_name}/")
+async def get_products_by_category(category_name: str, request: Request):
+    """
+    Получает все продукты определенной категории.
+    
+    Args:
+        category_name: Название категории
+        
+    Returns:
+        Список продуктов указанной категории
+    """
+    try:
+        # Проверяем существование категории
+        category = await CategoryRepository.get_by_name(category_name)
+        if not category or not category.is_active:
+            raise HTTPException(status_code=404, detail=f"Category '{category_name}' not found or inactive")
+        
+        image_db = await ImagesRepository.get_all_with_products()
+        base_url = str(request.base_url).rstrip("/")
+        result = []
+        
+        for img in image_db:
+            if img.product.category_id == category.id:
+                product_data = {
+                    "id": img.product.id,
+                    "name": img.product.name,
+                    "description": img.product.description,
+                    "price": img.product.price,
+                    "category_id": img.product.category_id,
+                    "category_name": img.product.category.name if img.product.category else None,
+                    "image_id": img.id,
+                    "image_path": f"{base_url}/media/{img.id}"
+                }
+                result.append(product_data)
+        
+        return {
+            "category": {
+                "id": category.id,
+                "name": category.name,
+                "description": category.description
+            },
+            "products": result,
+            "total_products": len(result)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.warning(f"Error getting products by category: {e}")
+        raise HTTPException(status_code=500, detail="Error getting products by category")

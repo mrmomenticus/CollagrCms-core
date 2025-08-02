@@ -14,7 +14,7 @@ class ProductRepository:
         product = ProductDb()
         product.name = new_product.name
         product.description = new_product.description
-        product.category = new_product.category
+        product.category_id = new_product.category_id
         product.price = new_product.price
         try:
             session.add(product)
@@ -56,7 +56,7 @@ class ProductRepository:
             product = result.scalars().first()
             product.name = new_product.name
             product.description = new_product.description
-            product.category = new_product.category
+            product.category_id = new_product.category_id
             product.price = new_product.price
             await session.commit()
         except Exception as e:

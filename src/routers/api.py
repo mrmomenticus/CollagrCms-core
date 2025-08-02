@@ -774,40 +774,40 @@ async def put_image(image_id: int, image: UploadFile = File(...)):  # noqa: B008
 
 
 # --- Simple Auth Stub ---
-HARDCODED_USERNAME = "admin"
-HARDCODED_PASSWORD = "password123"
-SESSION_TOKEN = "secret-token"
-ALLOWED_PATHS = ["/login"]
+# HARDCODED_USERNAME = "admin"
+# HARDCODED_PASSWORD = "password123"
+# SESSION_TOKEN = "secret-token"
+# ALLOWED_PATHS = ["/login"]
  
 
-class SimpleAuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        allowed = request.url.path in ALLOWED_PATHS or request.url.path.startswith((
-            "/docs",
-            "/redoc",
-            "/openapi",
-        ))
-        if allowed:
-            return await call_next(request)
-        auth = request.headers.get("Authorization")
-        if (
-            not auth
-            or not auth.startswith("Bearer ")
-            or auth.split(" ", 1)[1] != SESSION_TOKEN
-        ):
-            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
-        return await call_next(request)
+# class SimpleAuthMiddleware(BaseHTTPMiddleware):
+#     async def dispatch(self, request: Request, call_next):
+#         allowed = request.url.path in ALLOWED_PATHS or request.url.path.startswith((
+#             "/docs",
+#             "/redoc",
+#             "/openapi",
+#         ))
+#         if allowed:
+#             return await call_next(request)
+#         auth = request.headers.get("Authorization")
+#         if (
+#             not auth
+#             or not auth.startswith("Bearer ")
+#             or auth.split(" ", 1)[1] != SESSION_TOKEN
+#         ):
+#             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+#         return await call_next(request)
 
 
-api.add_middleware(SimpleAuthMiddleware)
-# --- End Simple Auth Stub ---
+# api.add_middleware(SimpleAuthMiddleware)
+# # --- End Simple Auth Stub ---
 
 
-@api.post("/login")
-async def login(username: str = Body(...), password: str = Body(...)):
-    if username == HARDCODED_USERNAME and password == HARDCODED_PASSWORD:
-        return {"token": SESSION_TOKEN}
-    return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
+# @api.post("/login")
+# async def login(username: str = Body(...), password: str = Body(...)):
+#     if username == HARDCODED_USERNAME and password == HARDCODED_PASSWORD:
+#         return {"token": SESSION_TOKEN}
+#     return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
 
 
 # --- Category Endpoints ---

@@ -773,7 +773,7 @@ async def put_image(image_id: int, image: UploadFile = File(...)):  # noqa: B008
 
 
 
---- Simple Auth Stub ---
+# --- Simple Auth Stub ---
 HARDCODED_USERNAME = "admin"
 HARDCODED_PASSWORD = "password123"
 SESSION_TOKEN = "secret-token"

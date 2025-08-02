@@ -12,11 +12,11 @@ class Font:
     """
 
     CYRILLIC_FONT_PATTERNS: List[str] = [
+        "Roboto",
         "Liberation",
         "DejaVu",
         "Noto",
         "Ubuntu",
-        "Roboto",
         "OpenSans",
         "PT",
         "Fira",

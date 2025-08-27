@@ -1,8 +1,40 @@
 import asyncio
+import logging
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from src.database.connection import db
+
+from src.routers.categories import router as categories_router
+from src.routers.products import router as products_router
+from src.routers.images import router as images_router
+from src.routers.collages import router as collages_router
 from src.utils.config import config
 from src.utils.logs import LoggerConfigurator
+from src.database.connection import db
+
+# Создаем основное приложение FastAPI
+app = FastAPI(
+    title="CollagrCms API",
+    version="0.2.0",
+    description="Рефакторированный API для системы управления коллажами",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# Добавляем поддержку CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # В продакшене следует указать конкретные домены
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Подключаем роутеры для каждого модуля
+app.include_router(categories_router)
+app.include_router(products_router)
+app.include_router(images_router)
+app.include_router(collages_router)
 
 
 def create_url() -> str:
@@ -19,12 +51,11 @@ async def async_main():
     # Инициализация базы данных
     await db.connect(create_url())
     await db.init_database()
-
     try:
         server_config = config.get_server_config()
         server = uvicorn.Server(
             config=uvicorn.Config(
-                "src.routers.api:api",
+                "src.routers.api:app",
                 host=server_config.get("host", "0.0.0.0"),
                 port=server_config.get("port", 8000),
                 log_level="debug" if server_config.get("debug", False) else "info",
@@ -36,9 +67,5 @@ async def async_main():
         await db.close()
 
 
-def main():
-    asyncio.run(async_main())
-
-
 if __name__ == "__main__":
-    main()
+    asyncio.run(async_main())

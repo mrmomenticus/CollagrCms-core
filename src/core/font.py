@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from typing import List
 from PIL import ImageFont
-from src.utils.exeptions import NotFound
 
 
 class Font:
@@ -76,7 +75,7 @@ class Font:
         logging.critical(
             "Не найден шрифт с поддержкой кириллицы в /usr/share/fonts/, используется встроенный шрифт"
         )
-        raise NotFound("Нужный шрифт не найден")
+        raise ValueError("Нужный шрифт не найден")
 
     def get_font_object(self, size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
         if self._font:
@@ -88,4 +87,4 @@ class Font:
                 return ImageFont.truetype(self._font, size)
             except Exception as e:
                 logging.warning(f"Ошибка загрузки шрифта: {e}")
-        raise NotFound("Не получилось загрузить шрифт")
+        raise ValueError("Не получилось загрузить шрифт")

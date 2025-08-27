@@ -13,7 +13,7 @@ from src.routers.collages import router as collages_router
 
 app = FastAPI(
     title="CollagrCms API",
-    version="0.2.0",
+    version="0.1.0",
     description="Рефакторированный API для системы управления коллажами",
     docs_url="/docs",
     redoc_url="/redoc",

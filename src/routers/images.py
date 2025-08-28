@@ -36,7 +36,7 @@ async def get_image(image_id: int):
         raise e
     except Exception as e:
         logging.error(f"API ошибка при получении изображения {image_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка получения изображения")
+        raise HTTPException(status_code=500, detail="Ошибка получения изображения") from e
 
 
 @router.put("/{image_id}")
@@ -71,7 +71,7 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
         # Обновляем изображение
         await ImageService.update_image(image_id, image, category_name)
 
-        logging.info(f"API ответ: изображение обновлено")
+        logging.info("API ответ: изображение обновлено")
         return {"message": "Изображение обновлено"}
 
     except HTTPException as e:
@@ -79,4 +79,4 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
         raise e
     except Exception as e:
         logging.error(f"API ошибка при обновлении изображения {image_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка обновления изображения")
+        raise HTTPException(status_code=500, detail="Ошибка обновления изображения") from e 

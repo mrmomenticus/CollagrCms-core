@@ -56,7 +56,7 @@ async def create_product(
         raise e
     except Exception as e:
         logging.error(f"API ошибка при создании продукта {name}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка создания продукта")
+        raise HTTPException(status_code=500, detail="Ошибка создания продукта") from e
 
 
 @router.get("/", response_model=List[ImageWithProduct])
@@ -85,7 +85,7 @@ async def получить_продукты(request: Request):
 
     except Exception as e:
         logging.error(f"API ошибка при получении продуктов: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка получения продуктов")
+        raise HTTPException(status_code=500, detail="Ошибка получения продуктов") from e
 
 
 @router.get("/with-categories/")
@@ -115,8 +115,8 @@ async def get_product_with_category(request: Request):
     except Exception as e:
         logging.error(f"API ошибка при получении продуктов с категориями: {e}")
         raise HTTPException(
-            status_code=500, detail="Ошибка получения продуктов с категориями"
-        )
+            status_code=500, detail="Ошибка получени from eя продуктов с категориями"
+        ) from e
 
 
 @router.get("/by-category/{category_name}/")
@@ -176,8 +176,8 @@ async def get_product_category(category_name: str, request: Request):
             f"API ошибка при получении продуктов категории {category_name}: {e}"
         )
         raise HTTPException(
-            status_code=500, detail="Ошибка получения продуктов по категории"
-        )
+            status_code=500, detail="Ошибка получени from eя продуктов по категории"
+        ) from e
 
 
 @router.put("/{product_id}")
@@ -215,7 +215,7 @@ async def update_product(
         raise e
     except Exception as e:
         logging.error(f"API ошибка при обновлении продукта {product_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка обновления продукта")
+        raise HTTPException(status_code=500, detail="Ошибка обновления продукта") from e
 
 
 @router.delete("/{product_id}")
@@ -244,7 +244,7 @@ async def delete_product(product_id: int):
         # Удаляем продукт (изображения удалятся каскадно)
         await ProductService.delete_product(product_id)
 
-        logging.info(f"API ответ: продукт удален")
+        logging.info("API ответ: продукт удален")
         return {"message": "Продукт удален"}
 
     except HTTPException as e:
@@ -252,4 +252,4 @@ async def delete_product(product_id: int):
         raise e
     except Exception as e:
         logging.error(f"API ошибка при удалении продукта {product_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка удаления продукта")
+        raise HTTPException(status_code=500, detail="Ошибка удаления продукта") from e

@@ -39,7 +39,7 @@ async def create_collage(list_id: List[int] = Query(..., min_length=1, max_lengt
             list_id, "collage.jpg"
         )
 
-        logging.info(f"API ответ: коллаж создан и возвращен")
+        logging.info("API ответ: коллаж создан и возвращен")
         return FileResponse(
             collage_path, media_type="image/jpeg", filename="collage.jpg"
         )
@@ -49,7 +49,7 @@ async def create_collage(list_id: List[int] = Query(..., min_length=1, max_lengt
         raise e
     except Exception as e:
         logging.error(f"API ошибка при создании коллажа: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка создания коллажа")
+        raise HTTPException(status_code=500, detail="Ошибка создания коллажа") from e
 
 
 @router.get("/select-all/")
@@ -69,7 +69,9 @@ async def get_all_product_for_collage():
 
     except Exception as e:
         logging.error(f"API ошибка при получении всех продуктов: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка получения всех продуктов")
+        raise HTTPException(
+            status_code=500, detail="Ошибка получения всех продуктов"
+        ) from e
 
 
 @router.get("/batch/")
@@ -122,7 +124,9 @@ async def create_batch_collage(
         raise e
     except Exception as e:
         logging.error(f"API ошибка при создании коллажа пакета: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка создания коллажа пакета")
+        raise HTTPException(
+            status_code=500, detail="Ошибка создания коллажа пакета"
+        ) from e
 
 
 @router.get("/batch/all/")
@@ -166,7 +170,7 @@ async def create_all_collage_info(
         logging.error(f"API ошибка при получении информации о всех коллажах: {e}")
         raise HTTPException(
             status_code=500, detail="Ошибка получения информации о всех коллажах"
-        )
+        ) from e
 
 
 @router.get("/batch/all/download/")
@@ -216,7 +220,7 @@ async def create_and_dowload_all_collages(
         logging.error(f"API ошибка при создании и скачивании всех коллажей: {e}")
         raise HTTPException(
             status_code=500, detail="Ошибка создания и скачивания всех коллажей"
-        )
+        ) from e
 
 
 @router.get("/batch/status/")
@@ -238,7 +242,7 @@ async def get_batch_processing_status():
 
     except Exception as e:
         logging.error(f"API ошибка при получении статуса: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка получения статуса")
+        raise HTTPException(status_code=500, detail="Ошибка получения статуса") from e
 
 
 @router.get("/batch/info/")
@@ -275,7 +279,7 @@ async def get_batch_info(
         logging.error(f"API ошибка при получении информации о пакете: {e}")
         raise HTTPException(
             status_code=500, detail="Ошибка получения информации о пакете"
-        )
+        ) from e
 
 
 @router.post("/cleanup/")
@@ -295,4 +299,6 @@ async def cleanup_temp_files():
 
     except Exception as e:
         logging.error(f"API ошибка при очистке временных файлов: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка очистки временных файлов")
+        raise HTTPException(
+            status_code=500, detail="Ошибка очистки временных файлов"
+        ) from e

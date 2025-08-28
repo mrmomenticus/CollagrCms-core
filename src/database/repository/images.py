@@ -4,7 +4,7 @@ from sqlalchemy import select
 from src.database.schema.images import ImagesDb
 from src.database.schema.products import ProductDb
 from src.database.connection import db
-from src.utils.exceptions import ImageNotFoundError
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import joinedload
 
 
@@ -216,13 +216,13 @@ class ImagesRepository:
                 logging.warning(
                     f"Изображение с ID {image_id} не найдено в БД для обновления"
                 )
-                raise ImageNotFoundError(image_id)
+                raise NoResultFound(f"Image with ID {image_id} not found")
 
             old_path = image.path
             image.path = path
             await session.commit()
             logging.info(f"Изображение успешно обновлено в БД: {old_path} -> {path}")
-        except ImageNotFoundError:
+        except NoResultFound:
             raise
         except Exception as e:
             logging.error(f"Ошибка при обновлении изображения в БД: {e}")

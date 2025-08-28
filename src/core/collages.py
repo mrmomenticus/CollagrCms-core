@@ -14,7 +14,7 @@ from src.core.collage_creator import CollageCreator
 from src.core.images import ImageService
 from src.database.schema.images import ImagesDb
 from src.models.models import ImageWithProduct
-from src.utils.exceptions import CollageCreationError, ImageNotFoundError
+from fastapi import HTTPException, status
 
 
 class CollageService:
@@ -43,7 +43,10 @@ class CollageService:
         if len(list_id) < 1 or len(list_id) > 12:
             error_msg = f"Количество изображений должно быть от 1 до 12, получено: {len(list_id)}"
             logging.warning(error_msg)
-            raise CollageCreationError(error_msg)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=error_msg,
+            )
 
         try:
             # Получаем изображения с продуктами
@@ -55,7 +58,10 @@ class CollageService:
                 missing_ids = [img_id for img_id in list_id if img_id not in found_ids]
                 error_msg = f"Изображения с ID {missing_ids} не найдены"
                 logging.warning(error_msg)
-                raise ImageNotFoundError()
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_msg,
+                )
 
             # Создаем модели для коллажа
             image_models = [ImageWithProduct.model_validate(img) for img in images_db]
@@ -65,11 +71,14 @@ class CollageService:
             logging.info(f"Коллаж успешно создан: {collage_path}")
             return collage_path
 
-        except (CollageCreationError, ImageNotFoundError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при создании коллажа: {e}")
-            raise CollageCreationError(f"Ошибка при создании коллажа: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка при создании коллажа: {e}",
+            )
 
     @staticmethod
     async def get_all_products_info() -> dict:
@@ -146,7 +155,10 @@ class CollageService:
 
             if not all_images_db:
                 logging.warning("Товары не найдены")
-                raise ImageNotFoundError()
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Товары не найдены",
+                )
 
             total_images = len(all_images_db)
             total_batches = (total_images + batch_size - 1) // batch_size
@@ -155,7 +167,10 @@ class CollageService:
             if start_index >= total_images:
                 error_msg = f"Начальный индекс {start_index} превышает общее количество товаров ({total_images})"
                 logging.warning(error_msg)
-                raise CollageCreationError(error_msg)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_msg,
+                )
 
             # Обрабатываем текущий пакет
             end_index = min(start_index + batch_size, total_images)
@@ -193,11 +208,14 @@ class CollageService:
             logging.info(f"Коллаж пакета создан: {collage_filename}")
             return collage_path, batch_info
 
-        except (CollageCreationError, ImageNotFoundError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при создании коллажа пакета: {e}")
-            raise CollageCreationError(f"Ошибка при создании коллажа пакета: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка при создании коллажа пакета: {e}",
+            )
 
     @staticmethod
     async def create_all_collages_zip(batch_size: int = 12) -> tuple[str, dict]:
@@ -224,7 +242,10 @@ class CollageService:
 
             if not all_images_db:
                 logging.warning("Товары не найдены")
-                raise ImageNotFoundError()
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Товары не найдены",
+                )
 
             # Создаем временную папку для коллажей
             temp_collages_dir = tempfile.mkdtemp(prefix="collages_")
@@ -286,11 +307,14 @@ class CollageService:
             )
             return zip_path, creation_info
 
-        except (CollageCreationError, ImageNotFoundError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при создании всех коллажей: {e}")
-            raise CollageCreationError(f"Ошибка при создании всех коллажей: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Ошибка при создании всех коллажей: {e}",
+            )
 
     @staticmethod
     async def get_batch_info(start_index: int = 0, batch_size: int = 12) -> dict:
@@ -318,7 +342,10 @@ class CollageService:
 
             if not all_images_db:
                 logging.warning("Товары не найдены")
-                raise ImageNotFoundError()
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Товары не найдены",
+                )
 
             total_images = len(all_images_db)
             total_batches = (total_images + batch_size - 1) // batch_size
@@ -327,7 +354,10 @@ class CollageService:
             if start_index >= total_images:
                 error_msg = f"Начальный индекс {start_index} превышает общее количество товаров ({total_images})"
                 logging.warning(error_msg)
-                raise CollageCreationError(error_msg)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_msg,
+                )
 
             # Обрабатываем текущий пакет
             end_index = min(start_index + batch_size, total_images)
@@ -359,7 +389,7 @@ class CollageService:
             )
             return result
 
-        except (CollageCreationError, ImageNotFoundError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при получении информации о пакете: {e}")

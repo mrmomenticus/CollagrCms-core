@@ -2,7 +2,7 @@ import logging
 from sqlalchemy import select
 from src.database.schema.categories import CategoryDb
 from src.database.connection import db
-from src.utils.exceptions import CategoryNotFoundError, CategoryAlreadyExistsError
+from sqlalchemy.exc import NoResultFound
 
 
 class CategoryRepository:
@@ -191,7 +191,7 @@ class CategoryRepository:
                 logging.warning(
                     f"Категория с ID {category_id} не найдена в БД для обновления"
                 )
-                raise CategoryNotFoundError(category_id=category_id)
+                raise NoResultFound(f"Category with ID {category_id} not found")
 
             if name is not None:
                 category.name = name
@@ -201,7 +201,7 @@ class CategoryRepository:
                 category.is_active = is_active
             await session.commit()
             logging.info(f"Категория успешно обновлена в БД: {category.name}")
-        except CategoryNotFoundError:
+        except NoResultFound:
             raise
         except Exception as e:
             logging.error(f"Ошибка при обновлении категории в БД: {e}")
@@ -232,13 +232,13 @@ class CategoryRepository:
                 logging.warning(
                     f"Категория с ID {category_id} не найдена в БД для удаления"
                 )
-                raise CategoryNotFoundError(category_id=category_id)
+                raise NoResultFound(f"Category with ID {category_id} not found")
 
             # Мягкое удаление - просто деактивируем
             category.is_active = False
             await session.commit()
             logging.info(f"Категория успешно деактивирована в БД: {category.name}")
-        except CategoryNotFoundError:
+        except NoResultFound:
             raise
         except Exception as e:
             logging.error(f"Ошибка при деактивации категории в БД: {e}")
@@ -269,13 +269,13 @@ class CategoryRepository:
                 logging.warning(
                     f"Категория с ID {category_id} не найдена в БД для полного удаления"
                 )
-                raise CategoryNotFoundError(category_id=category_id)
+                raise NoResultFound(f"Category with ID {category_id} not found")
 
             category_name = category.name
             await session.delete(category)
             await session.commit()
             logging.info(f"Категория полностью удалена из БД: {category_name}")
-        except CategoryNotFoundError:
+        except NoResultFound:
             raise
         except Exception as e:
             logging.error(f"Ошибка при полном удалении категории из БД: {e}")

@@ -8,11 +8,7 @@ from typing import List
 from src.database.repository.categories import CategoryRepository
 from src.database.schema.categories import CategoryDb
 from src.models.models import Category
-from src.utils.exceptions import (
-    CategoryNotFoundError,
-    CategoryAlreadyExistsError,
-    CategoryInactiveError,
-)
+from fastapi import HTTPException, status
 
 
 class CategoryService:
@@ -39,7 +35,10 @@ class CategoryService:
         existing_category = await CategoryRepository.get_by_name(name)
         if existing_category:
             logging.warning(f"Попытка создать существующую категорию: {name}")
-            raise CategoryAlreadyExistsError(name)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Категория с названием '{name}' уже существует",
+            )
 
         try:
             category_db = await CategoryRepository.add(name, description)
@@ -99,11 +98,14 @@ class CategoryService:
             category_db = await CategoryRepository.get_by_id(category_id)
             if not category_db:
                 logging.warning(f"Категория с ID {category_id} не найдена")
-                raise CategoryNotFoundError(category_id=category_id)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Категория с ID {category_id} не найдена",
+                )
 
             logging.info(f"Категория найдена: {category_db.name}")
             return Category.model_validate(category_db)
-        except CategoryNotFoundError:
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при получении категории {category_id}: {e}")
@@ -131,15 +133,21 @@ class CategoryService:
             category_db = await CategoryRepository.get_by_name(name)
             if not category_db:
                 logging.warning(f"Категория '{name}' не найдена")
-                raise CategoryNotFoundError(category_name=name)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Категория '{name}' не найдена",
+                )
 
             if check_active and not category_db.is_active:
                 logging.warning(f"Категория '{name}' неактивна")
-                raise CategoryInactiveError(name)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Категория '{name}' неактивна",
+                )
 
             logging.info(f"Категория найдена: {name}")
             return Category.model_validate(category_db)
-        except (CategoryNotFoundError, CategoryInactiveError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при получении категории '{name}': {e}")
@@ -175,14 +183,20 @@ class CategoryService:
             existing_category = await CategoryRepository.get_by_id(category_id)
             if not existing_category:
                 logging.warning(f"Категория с ID {category_id} не найдена")
-                raise CategoryNotFoundError(category_id=category_id)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Категория с ID {category_id} не найдена",
+                )
 
             # Если меняем имя, проверяем что новое имя не занято
             if name and name != existing_category.name:
                 category_with_name = await CategoryRepository.get_by_name(name)
                 if category_with_name:
                     logging.warning(f"Категория с именем '{name}' уже существует")
-                    raise CategoryAlreadyExistsError(name)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Категория с названием '{name}' уже существует",
+                    )
 
             await CategoryRepository.update(category_id, name, description, is_active)
 
@@ -192,10 +206,13 @@ class CategoryService:
                 logging.error(
                     f"Не удалось получить обновленную категорию с ID {category_id}"
                 )
-                raise CategoryNotFoundError(category_id=category_id)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Категория с ID {category_id} не найдена",
+                )
             logging.info(f"Категория успешно обновлена: {updated_category.name}")
             return Category.model_validate(updated_category)
-        except (CategoryNotFoundError, CategoryAlreadyExistsError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при обновлении категории {category_id}: {e}")
@@ -213,16 +230,17 @@ class CategoryService:
         Raises:
             CategoryNotFoundError: Если категория не найдена
         """
-        logging.info(
-            f"Удаление категории ID {category_id} (жесткое: {hard_delete})"
-        )
+        logging.info(f"Удаление категории ID {category_id} (жесткое: {hard_delete})")
 
         try:
             # Проверяем существование категории
             existing_category = await CategoryRepository.get_by_id(category_id)
             if not existing_category:
                 logging.warning(f"Категория с ID {category_id} не найдена")
-                raise CategoryNotFoundError(category_id=category_id)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Категория с ID {category_id} не найдена",
+                )
 
             if hard_delete:
                 await CategoryRepository.hard_delete(category_id)
@@ -231,7 +249,7 @@ class CategoryService:
                 await CategoryRepository.delete(category_id)
                 logging.info(f"Категория {existing_category.name} деактивирована")
 
-        except CategoryNotFoundError:
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при удалении категории {category_id}: {e}")

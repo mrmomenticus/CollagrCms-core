@@ -7,18 +7,14 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 
 from src.core.images import ImageService
-from src.utils.exceptions import (
-    ImageNotFoundError,
-    InvalidFileError,
-    convert_to_http_exception,
-)
+# Кастомные исключения удалены — используем стандартные HTTPException
 
 # Создаем роутер для изображений
 router = APIRouter(prefix="/media", tags=["images"])
 
 
 @router.get("/{image_id}")
-async def получить_изображение(image_id: int):
+async def get_image(image_id: int):
     """
     Возвращает файл изображения по ID
 
@@ -35,9 +31,9 @@ async def получить_изображение(image_id: int):
         logging.info(f"API ответ: возвращен файл изображения {image.path}")
         return FileResponse(image.path, media_type="image/jpeg")
 
-    except ImageNotFoundError as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при получении изображения {image_id}: {e}")
         raise HTTPException(status_code=500, detail="Ошибка получения изображения")
@@ -63,7 +59,7 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
         )
         if not existing_images:
             logging.warning(f"Изображение с ID {image_id} не найдено")
-            raise ImageNotFoundError(image_id)
+            raise HTTPException(status_code=404, detail=f"Изображение с ID {image_id} не найдено")
 
         existing_image = existing_images[0]
         category_name = (
@@ -78,9 +74,9 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
         logging.info(f"API ответ: изображение обновлено")
         return {"message": "Изображение обновлено"}
 
-    except (ImageNotFoundError, InvalidFileError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при обновлении изображения {image_id}: {e}")
         raise HTTPException(status_code=500, detail="Ошибка обновления изображения")

@@ -4,12 +4,12 @@
 
 import logging
 from typing import List
-from fastapi import UploadFile, Request
+from fastapi import UploadFile, Request, HTTPException, status
 
 from src.database.repository.images import ImagesRepository
 from src.database.schema.images import ImagesDb
 from src.models.models import ImageWithProduct
-from src.utils.exceptions import ImageNotFoundError, InvalidFileError
+# Заменены кастомные исключения на стандартные HTTPException
 
 
 class ImageService:
@@ -38,7 +38,10 @@ class ImageService:
         try:
             if not image_file.filename:
                 logging.warning("Неверное имя файла")
-                raise InvalidFileError("Неверное имя файла")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Неверное имя файла",
+                )
 
             # Обрабатываем загрузку файла
             path = await handle_file_upload(image_file, category_name)
@@ -48,7 +51,7 @@ class ImageService:
             logging.info(f"Изображение успешно создано: {path} (ID: {image_db.id})")
             return image_db
 
-        except InvalidFileError:
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(
@@ -112,11 +115,14 @@ class ImageService:
             image_db = await ImagesRepository.get_by_id(image_id)
             if not image_db:
                 logging.warning(f"Изображение с ID {image_id} не найдено")
-                raise ImageNotFoundError(image_id)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Изображение с ID {image_id} не найдено",
+                )
 
             logging.info(f"Изображение найдено: {image_db.path}")
             return image_db
-        except ImageNotFoundError:
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при получении изображения {image_id}: {e}")
@@ -156,17 +162,23 @@ class ImageService:
             if not images_db:
                 if list_id_images:
                     logging.warning(f"Изображения с ID {list_id_images} не найдены")
-                    raise ImageNotFoundError()
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Изображения с ID {list_id_images} не найдены",
+                    )
                 elif list_id_products:
                     logging.warning(
                         f"Изображения для продуктов {list_id_products} не найдены"
                     )
-                    raise ImageNotFoundError()
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Изображения для продуктов {list_id_products} не найдены",
+                    )
                 return []
 
             logging.info(f"Найдено изображений: {len(images_db)}")
             return images_db
-        except ImageNotFoundError:
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при получении изображений: {e}")
@@ -197,7 +209,10 @@ class ImageService:
             )
             if not existing_images:
                 logging.warning(f"Изображение с ID {image_id} не найдено")
-                raise ImageNotFoundError(image_id)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Изображение с ID {image_id} не найдено",
+                )
 
             existing_image = existing_images[0]
 
@@ -214,7 +229,7 @@ class ImageService:
 
             logging.info(f"Изображение успешно обновлено: {new_path}")
 
-        except (ImageNotFoundError, InvalidFileError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при обновлении изображения {image_id}: {e}")
@@ -314,7 +329,10 @@ async def handle_file_upload(image: UploadFile, tag: str) -> str:
     from src.utils.file import create_uuid, create_path, created_file
 
     if not image.filename:
-        raise InvalidFileError("Неверное имя файла")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверное имя файла",
+        )
 
     uuid = await create_uuid(image.filename)
     path = await create_path(uuid, tag)

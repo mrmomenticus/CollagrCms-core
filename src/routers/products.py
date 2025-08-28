@@ -9,20 +9,14 @@ from fastapi import APIRouter, Form, UploadFile, File, HTTPException, status, Re
 from src.core.products import ProductService
 from src.core.images import ImageService
 from src.models.models import ImageWithProduct
-from src.utils.exceptions import (
-    ProductNotFoundError,
-    CategoryNotFoundError,
-    CategoryInactiveError,
-    InvalidFileError,
-    convert_to_http_exception,
-)
+# Кастомные исключения удалены — используем стандартные HTTPException
 
 # Создаем роутер для продуктов
 router = APIRouter(prefix="/products", tags=["products"])
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-async def создать_продукт(
+async def create_product(
     name: str = Form(...),
     description: str = Form(...),
     category_name: str = Form(...),
@@ -57,9 +51,9 @@ async def создать_продукт(
         )
         return {"image": image_db}
 
-    except (CategoryNotFoundError, CategoryInactiveError, InvalidFileError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при создании продукта {name}: {e}")
         raise HTTPException(status_code=500, detail="Ошибка создания продукта")
@@ -95,7 +89,7 @@ async def получить_продукты(request: Request):
 
 
 @router.get("/with-categories/")
-async def получить_продукты_с_категориями(request: Request):
+async def get_product_with_category(request: Request):
     """
     Получает все продукты с полной информацией о категориях
 
@@ -126,7 +120,7 @@ async def получить_продукты_с_категориями(request: R
 
 
 @router.get("/by-category/{category_name}/")
-async def получить_продукты_по_категории(category_name: str, request: Request):
+async def get_product_category(category_name: str, request: Request):
     """
     Получает все продукты определенной категории
 
@@ -174,9 +168,9 @@ async def получить_продукты_по_категории(category_nam
         )
         return result
 
-    except (CategoryNotFoundError, CategoryInactiveError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(
             f"API ошибка при получении продуктов категории {category_name}: {e}"
@@ -187,7 +181,7 @@ async def получить_продукты_по_категории(category_nam
 
 
 @router.put("/{product_id}")
-async def обновить_продукт(
+async def update_product(
     product_id: int,
     name: str = Form(...),
     description: str = Form(...),
@@ -216,16 +210,16 @@ async def обновить_продукт(
         logging.info(f"API ответ: продукт обновлен {name}")
         return {"message": "Продукт обновлен"}
 
-    except (ProductNotFoundError, CategoryNotFoundError, CategoryInactiveError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при обновлении продукта {product_id}: {e}")
         raise HTTPException(status_code=500, detail="Ошибка обновления продукта")
 
 
 @router.delete("/{product_id}")
-async def удалить_продукт(product_id: int):
+async def delete_product(product_id: int):
     """
     Удаляет продукт и связанное изображение
 
@@ -253,9 +247,9 @@ async def удалить_продукт(product_id: int):
         logging.info(f"API ответ: продукт удален")
         return {"message": "Продукт удален"}
 
-    except ProductNotFoundError as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при удалении продукта {product_id}: {e}")
         raise HTTPException(status_code=500, detail="Ошибка удаления продукта")

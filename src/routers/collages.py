@@ -8,11 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from src.core.collages import CollageService
-from src.utils.exceptions import (
-    CollageCreationError,
-    ImageNotFoundError,
-    convert_to_http_exception,
-)
+# Кастомные исключения удалены — используем стандартные HTTPException
 
 # Создаем роутер для коллажей
 router = APIRouter(prefix="/collage", tags=["collages"])
@@ -48,16 +44,16 @@ async def create_collage(list_id: List[int] = Query(..., min_length=1, max_lengt
             collage_path, media_type="image/jpeg", filename="collage.jpg"
         )
 
-    except (CollageCreationError, ImageNotFoundError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при создании коллажа: {e}")
         raise HTTPException(status_code=500, detail="Ошибка создания коллажа")
 
 
 @router.get("/select-all/")
-async def получить_все_продукты_для_коллажей():
+async def get_all_product_for_collage():
     """
     Возвращает все доступные товары для создания коллажей
 
@@ -121,9 +117,9 @@ async def create_batch_collage(
         logging.info(f"API ответ: коллаж пакета создан {batch_info['filename']}")
         return response
 
-    except (CollageCreationError, ImageNotFoundError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при создании коллажа пакета: {e}")
         raise HTTPException(status_code=500, detail="Ошибка создания коллажа пакета")
@@ -213,9 +209,9 @@ async def create_and_dowload_all_collages(
         )
         return response
 
-    except (CollageCreationError, ImageNotFoundError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при создании и скачивании всех коллажей: {e}")
         raise HTTPException(
@@ -272,9 +268,9 @@ async def get_batch_info(
         )
         return result
 
-    except (CollageCreationError, ImageNotFoundError) as e:
-        logging.warning(f"API ошибка: {e.message}")
-        raise convert_to_http_exception(e)
+    except HTTPException as e:
+        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        raise e
     except Exception as e:
         logging.error(f"API ошибка при получении информации о пакете: {e}")
         raise HTTPException(

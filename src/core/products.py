@@ -9,11 +9,8 @@ from src.database.repository.products import ProductRepository
 from src.database.repository.categories import CategoryRepository
 from src.database.schema.products import ProductDb
 from src.models.models import Product
-from src.utils.exceptions import (
-    ProductNotFoundError,
-    CategoryNotFoundError,
-    CategoryInactiveError,
-)
+from fastapi import HTTPException, status
+from sqlalchemy.exc import NoResultFound
 
 
 class ProductService:
@@ -49,11 +46,17 @@ class ProductService:
             category = await CategoryRepository.get_by_name(category_name)
             if not category:
                 logging.warning(f"Категория '{category_name}' не найдена")
-                raise CategoryNotFoundError(category_name=category_name)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Категория '{category_name}' не найдена",
+                )
 
             if not category.is_active:
                 logging.warning(f"Категория '{category_name}' неактивна")
-                raise CategoryInactiveError(category_name)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Категория '{category_name}' неактивна",
+                )
 
             # Создаем продукт
             product_model = Product(
@@ -68,7 +71,7 @@ class ProductService:
             logging.info(f"Продукт успешно создан: {name} (ID: {product_db.id})")
             return product_db
 
-        except (CategoryNotFoundError, CategoryInactiveError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при создании продукта {name}: {e}")
@@ -116,11 +119,14 @@ class ProductService:
 
             if not product:
                 logging.warning(f"Продукт с ID {product_id} не найден")
-                raise ProductNotFoundError(product_id)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Продукт с ID {product_id} не найден",
+                )
 
             logging.info(f"Продукт найден: {product.name}")
             return product
-        except ProductNotFoundError:
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при получении продукта {product_id}: {e}")
@@ -159,11 +165,17 @@ class ProductService:
             category = await CategoryRepository.get_by_name(category_name)
             if not category:
                 logging.warning(f"Категория '{category_name}' не найдена")
-                raise CategoryNotFoundError(category_name=category_name)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Категория '{category_name}' не найдена",
+                )
 
             if not category.is_active:
                 logging.warning(f"Категория '{category_name}' неактивна")
-                raise CategoryInactiveError(category_name)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Категория '{category_name}' неактивна",
+                )
 
             # Обновляем продукт
             product_model = Product(
@@ -177,7 +189,7 @@ class ProductService:
             await ProductRepository.update(product_model)
             logging.info(f"Продукт успешно обновлен: {name}")
 
-        except (ProductNotFoundError, CategoryNotFoundError, CategoryInactiveError):
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при обновлении продукта {product_id}: {e}")
@@ -203,7 +215,7 @@ class ProductService:
             await ProductRepository.delete(product_id)
             logging.info(f"Продукт успешно удален: {product.name}")
 
-        except ProductNotFoundError:
+        except HTTPException:
             raise
         except Exception as e:
             logging.error(f"Ошибка при удалении продукта {product_id}: {e}")

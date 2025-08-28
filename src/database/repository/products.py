@@ -3,9 +3,9 @@ from src.database.schema.images import ImagesDb
 from src.database.schema.products import ProductDb
 from src.database.connection import db
 from src.models.models import Product
-from src.utils.exceptions import ProductNotFoundError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import NoResultFound
 
 
 class ProductRepository:
@@ -92,13 +92,13 @@ class ProductRepository:
                 logging.warning(
                     f"Продукт с ID {product_id} не найден в БД для удаления"
                 )
-                raise ProductNotFoundError(product_id)
+                raise NoResultFound(f"Product with ID {product_id} not found")
 
             product_name = product.name
             await session.delete(product)
             await session.commit()
             logging.info(f"Продукт успешно удален из БД: {product_name}")
-        except ProductNotFoundError:
+        except NoResultFound:
             raise
         except Exception as e:
             logging.error(f"Ошибка при удалении продукта из БД: {e}")
@@ -129,7 +129,7 @@ class ProductRepository:
                 logging.warning(
                     f"Продукт с ID {new_product.id} не найден в БД для обновления"
                 )
-                raise ProductNotFoundError(new_product.id)
+                raise NoResultFound(f"Product with ID {new_product.id} not found")
 
             product.name = new_product.name
             product.description = new_product.description
@@ -137,7 +137,7 @@ class ProductRepository:
             product.price = new_product.price
             await session.commit()
             logging.info(f"Продукт успешно обновлен в БД: {new_product.name}")
-        except ProductNotFoundError:
+        except NoResultFound:
             raise
         except Exception as e:
             logging.error(f"Ошибка при обновлении продукта в БД: {e}")

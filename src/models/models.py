@@ -15,15 +15,14 @@ class Product(BaseModel):
     id: int
     name: str
     description: str
-    category_id: Optional[int] = None
     price: int
-    category: Optional[Category] = None
+    categories: list[Category] = []
 
     @computed_field
     @property
-    def category_name(self) -> Optional[str]:
-        """Возвращает название категории для удобства"""
-        return self.category.name if self.category else None
+    def category_names(self) -> list[str]:
+        """Возвращает названия категорий для удобства"""
+        return [cat.name for cat in self.categories] if self.categories else []
 
     model_config = ConfigDict(from_attributes=True)
 

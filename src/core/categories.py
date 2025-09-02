@@ -5,10 +5,18 @@
 import logging
 from typing import List
 
-from src.database.repository.categories import CategoryRepository
-from src.database.schema.categories import CategoryDb
-from src.models.models import Category
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
+
+from src.core.images import ImageService
+from src.database.connection import db
+from src.database.repository.categories import CategoryRepository
+from src.database.repository.products import ProductRepository
+
+from src.database.schema.products import ProductDb
+from src.models.models import Category
+from src.utils.file import delete_file
 
 
 class CategoryService:
@@ -241,6 +249,36 @@ class CategoryService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Категория с ID {category_id} не найдена",
                 )
+
+            # Находим продукты, у которых только эта категория
+            products_to_delete = []
+            async with db.get_session() as session:
+                result = await session.execute(
+                    select(ProductDb).options(joinedload(ProductDb.categories))
+                )
+                all_products = result.unique().scalars().all()
+
+                for product in all_products:
+                    if (
+                        len(product.categories) == 1
+                        and product.categories[0].id == category_id
+                    ):
+                        products_to_delete.append(product)
+
+            # Удаляем продукты и их изображения
+            for product in products_to_delete:
+                logging.info(
+                    f"Удаление продукта {product.name} (ID: {product.id}) из-за удаления единственной категории"
+                )
+                # Удаляем изображения
+                images = await ImageService.get_images_by_ids(
+                    list_id_products=[product.id]
+                )
+                if images:
+                    for img in images:
+                        await delete_file(img.path)
+                # Удаляем продукт
+                await ProductRepository.delete(product.id)
 
             if hard_delete:
                 await CategoryRepository.hard_delete(category_id)

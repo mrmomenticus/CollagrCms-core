@@ -1,4 +1,3 @@
-from typing import List, Tuple
 from PIL import Image, ImageDraw
 import logging
 import math
@@ -42,7 +41,9 @@ class CollageCreator:
         Изменяет размер изображения до 900x900 без полос: если меньше — растягивает, если больше — сжимает пропорционально.
         Возвращает картинку и box (0, 0, 900, 900) для совместимости с overlay.
         """
-        cell_img = img.resize((self._cell_size, self._cell_size), Image.Resampling.LANCZOS)
+        cell_img = img.resize(
+            (self._cell_size, self._cell_size), Image.Resampling.LANCZOS
+        )
         return cell_img, (0, 0, self._cell_size, self._cell_size)
 
     def create(self, image_models: list[ImageWithProduct], output_path: str) -> str:
@@ -56,12 +57,16 @@ class CollageCreator:
         """
         image_count = len(image_models)
         if image_count < 1 or image_count > 12:
-            raise ValueError(f"Количество изображений должно быть от 1 до 12, получено: {image_count}")
+            raise ValueError(
+                f"Количество изображений должно быть от 1 до 12, получено: {image_count}"
+            )
         # Рассчитываем размеры сетки
         grid_cols, grid_rows = self._calculate_grid_dimensions(image_count)
         # Размер холста
         canvas_width = grid_cols * self._cell_size + (grid_cols - 1) * self._cell_margin
-        canvas_height = grid_rows * self._cell_size + (grid_rows - 1) * self._cell_margin
+        canvas_height = (
+            grid_rows * self._cell_size + (grid_rows - 1) * self._cell_margin
+        )
         # Создаем изображение
         collage = Image.new(
             "RGB", (canvas_width, canvas_height), self._background_color
@@ -90,5 +95,7 @@ class CollageCreator:
                 logging.error(f"Ошибка при обработке изображения {img_model.path}: {e}")
                 raise
         collage.save(output_path, "JPEG", quality=95)
-        logging.info(f"Коллаж сохранён в {output_path} (сетка: {grid_cols}x{grid_rows}, изображений: {image_count})")
+        logging.info(
+            f"Коллаж сохранён в {output_path} (сетка: {grid_cols}x{grid_rows}, изображений: {image_count})"
+        )
         return output_path

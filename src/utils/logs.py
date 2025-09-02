@@ -55,13 +55,9 @@ class LoggerConfigurator:
                 f"{self._path}/all_log_{os.getpid()}.log", mode="w"
             )
 
-        log_handler.setLevel(
-            self._get_level_from_string(self._level)
-        )
+        log_handler.setLevel(self._get_level_from_string(self._level))
         stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(
-            self._get_level_from_string(self._level)
-        )
+        stream_handler.setLevel(self._get_level_from_string(self._level))
         if self._format:
             log_handler.setFormatter(self._setup_formatter())
             stream_handler.setFormatter(self._setup_formatter())

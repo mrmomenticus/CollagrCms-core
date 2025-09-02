@@ -10,7 +10,6 @@ from src.database.repository.categories import CategoryRepository
 from src.database.schema.products import ProductDb
 from src.models.models import Product
 from fastapi import HTTPException, status
-from sqlalchemy.exc import NoResultFound
 
 
 class ProductService:
@@ -20,7 +19,7 @@ class ProductService:
     async def create_product(
         name: str,
         description: str,
-        category_name: str,
+        category_names: list[str],
         price: int,
     ) -> ProductDb:
         """
@@ -29,7 +28,7 @@ class ProductService:
         Args:
             name: Название продукта
             description: Описание продукта
-            category_name: Название категории
+            category_names: Список названий категорий
             price: Цена продукта
 
         Returns:
@@ -39,37 +38,55 @@ class ProductService:
             CategoryNotFoundError: Если категория не найдена
             CategoryInactiveError: Если категория неактивна
         """
-        logging.info(f"Создание продукта: {name} в категории {category_name}")
+        logging.info(f"Создание продукта: {name} в категориях {category_names}")
 
         try:
-            # Проверяем существование и активность категории
-            category = await CategoryRepository.get_by_name(category_name)
-            if not category:
-                logging.warning(f"Категория '{category_name}' не найдена")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Категория '{category_name}' не найдена",
-                )
+            categories = []
+            for category_name in category_names:
+                # Проверяем существование и активность категории
+                category = await CategoryRepository.get_by_name(category_name)
+                if not category:
+                    logging.warning(f"Категория '{category_name}' не найдена")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Категория '{category_name}' не найдена",
+                    )
 
-            if not category.is_active:
-                logging.warning(f"Категория '{category_name}' неактивна")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Категория '{category_name}' неактивна",
-                )
+                if not category.is_active:
+                    logging.warning(f"Категория '{category_name}' неактивна")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Категория '{category_name}' неактивна",
+                    )
+                categories.append(category)
 
             # Создаем продукт
             product_model = Product(
                 id=0,
                 name=name,
                 description=description,
-                category_id=category.id,
                 price=price,
             )
 
             product_db = await ProductRepository.add(product_model)
-            logging.info(f"Продукт успешно создан: {name} (ID: {product_db.id})")
-            return product_db
+
+            # Добавляем категории к продукту
+            await ProductRepository.update_categories(
+                product_db.id, [cat.id for cat in categories]
+            )
+
+            # Получаем обновленный продукт с категориями
+            product_with_categories = await ProductRepository.get_by_id_with_categories(
+                product_db.id
+            )
+            if product_with_categories:
+                logging.info(f"Продукт успешно создан: {name} (ID: {product_db.id})")
+                return product_with_categories
+            else:
+                logging.error(
+                    f"Не удалось получить созданный продукт с категориями: {name}"
+                )
+                return product_db
 
         except HTTPException:
             raise
@@ -137,7 +154,7 @@ class ProductService:
         product_id: int,
         name: str,
         description: str,
-        category_name: str,
+        category_names: list[str],
         price: int,
     ) -> None:
         """
@@ -147,7 +164,7 @@ class ProductService:
             product_id: ID продукта
             name: Новое название продукта
             description: Новое описание продукта
-            category_name: Название категории
+            category_names: Список названий категорий
             price: Новая цена продукта
 
         Raises:
@@ -161,32 +178,40 @@ class ProductService:
             # Проверяем существование продукта
             await ProductService.get_product_by_id(product_id)
 
-            # Проверяем существование и активность категории
-            category = await CategoryRepository.get_by_name(category_name)
-            if not category:
-                logging.warning(f"Категория '{category_name}' не найдена")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Категория '{category_name}' не найдена",
-                )
+            categories = []
+            for category_name in category_names:
+                # Проверяем существование и активность категории
+                category = await CategoryRepository.get_by_name(category_name)
+                if not category:
+                    logging.warning(f"Категория '{category_name}' не найдена")
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Категория '{category_name}' не найдена",
+                    )
 
-            if not category.is_active:
-                logging.warning(f"Категория '{category_name}' неактивна")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Категория '{category_name}' неактивна",
-                )
+                if not category.is_active:
+                    logging.warning(f"Категория '{category_name}' неактивна")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Категория '{category_name}' неактивна",
+                    )
+                categories.append(category)
 
             # Обновляем продукт
             product_model = Product(
                 id=product_id,
                 name=name,
                 description=description,
-                category_id=category.id,
                 price=price,
             )
 
             await ProductRepository.update(product_model)
+
+            # Обновляем категории
+            await ProductRepository.update_categories(
+                product_id, [cat.id for cat in categories]
+            )
+
             logging.info(f"Продукт успешно обновлен: {name}")
 
         except HTTPException:

@@ -112,7 +112,8 @@ async def create_batch_collage(
                 "X-Collage-End-Index": str(batch_info["end_index"]),
                 "X-Collage-Has-More": str(batch_info["has_more"]),
                 "X-Collage-Next-Start-Index": str(batch_info["next_start_index"]),
-                "X-Collage-Message": batch_info["message"],
+                # Убираем кириллицу из заголовков
+                "X-Collage-Message": f"Batch {batch_info['batch_number']} of {batch_info['total_batches']} (images {batch_info['start_index'] + 1}-{batch_info['end_index']} of {batch_info['total_images']})",
             },
         )
 
@@ -204,7 +205,8 @@ async def create_and_dowload_all_collages(
                 "X-Collage-Total-Batches": str(creation_info["total_batches"]),
                 "X-Collage-Total-Images": str(creation_info["total_images"]),
                 "X-Collage-Batch-Size": str(creation_info["batch_size"]),
-                "X-Collage-Message": creation_info["message"],
+                # Убираем кириллицу из заголовков, чтобы избежать проблем с кодировкой
+                "X-Collage-Message": f"Created {creation_info['total_batches']} collages from {creation_info['total_images']} images",
             },
         )
 

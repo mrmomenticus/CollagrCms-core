@@ -1,4 +1,6 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from src.database.schema.products import ProductDb
 from .base import BaseModel
 
 
@@ -8,8 +10,8 @@ class CategoryDb(BaseModel):
     name: Mapped[str] = mapped_column(nullable=False, unique=True)
     description: Mapped[str] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
-    
-    # Связь с продуктами
+
+    # Связь с продуктами (many-to-many)
     products: Mapped[list["ProductDb"]] = relationship(
-        "ProductDb", back_populates="category", cascade="delete"
-    ) 
+        "ProductDb", secondary="product_categories", back_populates="categories"
+    )

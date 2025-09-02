@@ -15,15 +15,27 @@ class Overlay:
         self._price_color = (65, 65, 65)
         self._desc_color = (40, 40, 40)
         self._price_font_min = 20  # минимальный размер шрифта цены
-        self._desc_font_min = 10   # минимальный размер шрифта описания
+        self._desc_font_min = 10  # минимальный размер шрифта описания
         self._price_font_overlay_ratio = 0.3  # цена: половина overlay
-        self._desc_font_overlay_ratio = 0.20   # описание: треть overlay
+        self._desc_font_overlay_ratio = 0.20  # описание: треть overlay
         self._max_description_length = 50
         self._max_chars_per_line = 25
         self._line_spacing = 2
         self._font = Font()
 
-    def _find_max_font_size(self, draw, text, font_path, max_width, max_height, bold=False, min_size=10, max_size=80, wrap_width=25, line_spacing=7):
+    def _find_max_font_size(
+        self,
+        draw,
+        text,
+        font_path,
+        max_width,
+        max_height,
+        bold=False,
+        min_size=10,
+        max_size=80,
+        wrap_width=25,
+        line_spacing=7,
+    ):
         left, right = min_size, max_size
         best_size = min_size
         while left <= right:
@@ -42,7 +54,10 @@ class Overlay:
                 line_width = bbox[2] - bbox[0]
                 total_height += line_height + line_spacing
                 max_line_width = max(max_line_width, line_width)
-            if total_height - line_spacing <= max_height and max_line_width <= max_width:
+            if (
+                total_height - line_spacing <= max_height
+                and max_line_width <= max_width
+            ):
                 best_size = mid
                 left = mid + 1
             else:
@@ -63,8 +78,12 @@ class Overlay:
 
     def _get_fonts(self, overlay_height):
         font_path = self._font.get_font()
-        price_font_size = max(self._price_font_min, int(overlay_height * self._price_font_overlay_ratio))
-        desc_font_size = max(self._desc_font_min, int(overlay_height * self._desc_font_overlay_ratio))
+        price_font_size = max(
+            self._price_font_min, int(overlay_height * self._price_font_overlay_ratio)
+        )
+        desc_font_size = max(
+            self._desc_font_min, int(overlay_height * self._desc_font_overlay_ratio)
+        )
         price_font = ImageFont.truetype(font_path, price_font_size)
         desc_font = ImageFont.truetype(font_path, desc_font_size)
         return price_font, desc_font, price_font_size
@@ -73,7 +92,9 @@ class Overlay:
         self, img: Image.Image, img_model: ImageWithProduct, img_box=None
     ) -> Image.Image:
         img_with_overlay = img.copy()
-        overlay_top, overlay_bottom, overlay_height, width, height = self._get_overlay_box(img.size, img_box)
+        overlay_top, overlay_bottom, overlay_height, width, height = (
+            self._get_overlay_box(img.size, img_box)
+        )
         margin_x = self._text_margin_x
         overlay_alpha = self._overlay_alpha
         # Overlay
@@ -83,7 +104,9 @@ class Overlay:
             [(0, overlay_top), (width, overlay_bottom)],
             fill=(255, 255, 255, overlay_alpha),
         )
-        img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+        img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert(
+            "RGB"
+        )
         draw = ImageDraw.Draw(img_with_overlay)
         # Fonts
         price_font, desc_font, price_font_size = self._get_fonts(overlay_height)
@@ -100,8 +123,15 @@ class Overlay:
         desc_max_width = width - 2 * margin_x
         desc_y = price_y + price_font_size + 10
         desc_max_height = overlay_bottom - desc_y - 10
-        description = str(img_model.product.description)[:self._max_description_length]
-        fitted_text = self._fit_text_to_overlay(draw, description, desc_font, desc_max_width, desc_max_height, line_spacing=self._line_spacing)
+        description = str(img_model.product.description)[: self._max_description_length]
+        fitted_text = self._fit_text_to_overlay(
+            draw,
+            description,
+            desc_font,
+            desc_max_width,
+            desc_max_height,
+            line_spacing=self._line_spacing,
+        )
         self._draw_multiline_text(
             draw,
             fitted_text,
@@ -113,27 +143,29 @@ class Overlay:
         )
         return img_with_overlay
 
-    def _fit_text_to_overlay(self, draw, text, font, max_width, max_height, line_spacing=7):
-        text = text[:self._max_description_length]
+    def _fit_text_to_overlay(
+        self, draw, text, font, max_width, max_height, line_spacing=7
+    ):
+        text = text[: self._max_description_length]
         lines = textwrap.wrap(
             text,
             width=self._max_chars_per_line,
             break_long_words=True,
-            drop_whitespace=True
+            drop_whitespace=True,
         )
         # Ограничиваем до 2 строк
         if len(lines) > 2:
             lines = lines[:2]
             # Добавляем троеточие к последней строке, если текст был обрезан
-            if not lines[1].endswith('...'):
+            if not lines[1].endswith("..."):
                 # Обрезаем, чтобы влезло троеточие по ширине
                 for cut in range(len(lines[1]), 0, -1):
-                    test_line = lines[1][:cut] + '...'
+                    test_line = lines[1][:cut] + "..."
                     bbox = draw.textbbox((0, 0), test_line, font=font)
                     if bbox[2] - bbox[0] <= max_width:
                         lines[1] = test_line
                         break
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _draw_multiline_text(
         self,
@@ -146,7 +178,7 @@ class Overlay:
         line_spacing=5,
     ):
         x, y = position
-        for line in text.split('\n'):
+        for line in text.split("\n"):
             if not line.strip():
                 y += font.size + line_spacing
                 continue

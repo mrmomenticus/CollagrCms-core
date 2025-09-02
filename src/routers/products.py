@@ -6,9 +6,11 @@ import logging
 from typing import List
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException, status, Request
 
-from src.core.products import ProductService
+from src.core.categories import CategoryService
 from src.core.images import ImageService
+from src.core.products import ProductService
 from src.models.models import ImageWithProduct
+from src.utils.file import delete_file
 # Кастомные исключения удалены — используем стандартные HTTPException
 
 # Создаем роутер для продуктов
@@ -19,7 +21,7 @@ router = APIRouter(prefix="/products", tags=["products"])
 async def create_product(
     name: str = Form(...),
     description: str = Form(...),
-    category_name: str = Form(...),
+    category_names: str = Form(...),  # Список названий через запятую
     price: int = Form(...),
     image: UploadFile = File(...),  # noqa: B008
 ):
@@ -29,22 +31,24 @@ async def create_product(
     Args:
         name: Название продукта
         description: Описание продукта
-        category_name: Название категории
+        category_names: Названия категорий через запятую
         price: Цена продукта
         image: Файл изображения
 
     Returns:
         Информация о созданном продукте и изображении
     """
-    logging.info(f"API запрос: создание продукта {name} в категории {category_name}")
+    category_list = [name.strip() for name in category_names.split(",") if name.strip()]
+    logging.info(f"API запрос: создание продукта {name} в категориях {category_list}")
     try:
         # Создаем продукт
         product_db = await ProductService.create_product(
-            name, description, category_name, price
+            name, description, category_list, price
         )
 
-        # Создаем изображение для продукта
-        image_db = await ImageService.create_image(product_db.id, image, category_name)
+        # Создаем изображение для продукта (используем первую категорию для пути)
+        first_category = category_list[0] if category_list else "default"
+        image_db = await ImageService.create_image(product_db.id, image, first_category)
 
         logging.info(
             f"API ответ: продукт создан {name} (ID: {product_db.id}) с изображением (ID: {image_db.id})"
@@ -133,8 +137,6 @@ async def get_product_category(category_name: str, request: Request):
     """
     logging.info(f"API запрос: получение продуктов категории {category_name}")
     try:
-        from src.core.categories import CategoryService
-
         # Проверяем существование и активность категории
         category = await CategoryService.get_category_by_name(
             category_name, check_active=True
@@ -145,7 +147,9 @@ async def get_product_category(category_name: str, request: Request):
 
         # Фильтруем по категории
         category_images = [
-            img for img in all_images_db if img.product.category_id == category.id
+            img
+            for img in all_images_db
+            if any(cat.id == category.id for cat in img.product.categories)
         ]
 
         # Форматируем для API ответа
@@ -185,7 +189,7 @@ async def update_product(
     product_id: int,
     name: str = Form(...),
     description: str = Form(...),
-    category_name: str = Form(...),
+    category_names: str = Form(...),  # Список названий через запятую
     price: int = Form(...),
 ):
     """
@@ -195,16 +199,17 @@ async def update_product(
         product_id: ID продукта
         name: Новое название продукта
         description: Новое описание продукта
-        category_name: Название категории
+        category_names: Названия категорий через запятую
         price: Новая цена продукта
 
     Returns:
         Сообщение об успешном обновлении
     """
+    category_list = [name.strip() for name in category_names.split(",") if name.strip()]
     logging.info(f"API запрос: обновление продукта ID {product_id}")
     try:
         await ProductService.update_product(
-            product_id, name, description, category_name, price
+            product_id, name, description, category_list, price
         )
 
         logging.info(f"API ответ: продукт обновлен {name}")
@@ -236,8 +241,6 @@ async def delete_product(product_id: int):
 
         # Удаляем файлы изображений
         if images:
-            from src.utils.file import delete_file
-
             for img in images:
                 await delete_file(img.path)
 

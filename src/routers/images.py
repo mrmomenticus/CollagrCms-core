@@ -36,7 +36,9 @@ async def get_image(image_id: int):
         raise e
     except Exception as e:
         logging.error(f"API ошибка при получении изображения {image_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка получения изображения") from e
+        raise HTTPException(
+            status_code=500, detail="Ошибка получения изображения"
+        ) from e
 
 
 @router.put("/{image_id}")
@@ -59,12 +61,14 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
         )
         if not existing_images:
             logging.warning(f"Изображение с ID {image_id} не найдено")
-            raise HTTPException(status_code=404, detail=f"Изображение с ID {image_id} не найдено")
+            raise HTTPException(
+                status_code=404, detail=f"Изображение с ID {image_id} не найдено"
+            )
 
         existing_image = existing_images[0]
         category_name = (
-            existing_image.product.category.name
-            if existing_image.product.category
+            existing_image.product.categories[0].name
+            if existing_image.product.categories
             else "default"
         )
 
@@ -79,4 +83,6 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
         raise e
     except Exception as e:
         logging.error(f"API ошибка при обновлении изображения {image_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка обновления изображения") from e 
+        raise HTTPException(
+            status_code=500, detail="Ошибка обновления изображения"
+        ) from e

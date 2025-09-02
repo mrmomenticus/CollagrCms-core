@@ -103,22 +103,22 @@ class ImagesRepository:
                 result = await session.execute(
                     select(ImagesDb)
                     .options(
-                        joinedload(ImagesDb.product).joinedload(ProductDb.category)
+                        joinedload(ImagesDb.product).joinedload(ProductDb.categories)
                     )
                     .where(ImagesDb.product_id.in_(list_id_products))
                 )
-                images = result.scalars().all()
+                images = result.unique().scalars().all()
                 logging.info(f"Найдено изображений по ID продуктов: {len(images)}")
                 return images
             if list_id_images:
                 result = await session.execute(
                     select(ImagesDb)
                     .options(
-                        joinedload(ImagesDb.product).joinedload(ProductDb.category)
+                        joinedload(ImagesDb.product).joinedload(ProductDb.categories)
                     )
                     .where(ImagesDb.id.in_(list_id_images))
                 )
-                images = result.scalars().all()
+                images = result.unique().scalars().all()
                 logging.info(f"Найдено изображений по ID: {len(images)}")
                 return images
             # Если не переданы ID, возвращаем None
@@ -146,10 +146,10 @@ class ImagesRepository:
         try:
             result = await session.execute(
                 select(ImagesDb).options(
-                    joinedload(ImagesDb.product).joinedload(ProductDb.category)
+                    joinedload(ImagesDb.product).joinedload(ProductDb.categories)
                 )
             )
-            images = result.scalars().all()
+            images = result.unique().scalars().all()
             logging.info(f"Получено изображений с продуктами из БД: {len(images)}")
             return images
         except Exception as e:
@@ -176,10 +176,10 @@ class ImagesRepository:
         try:
             result = await session.execute(
                 select(ImagesDb)
-                .options(joinedload(ImagesDb.product).joinedload(ProductDb.category))
+                .options(joinedload(ImagesDb.product).joinedload(ProductDb.categories))
                 .where(ImagesDb.id == image_id)
             )
-            image = result.scalars().first()
+            image = result.unique().scalars().first()
             if image:
                 logging.info(f"Изображение найдено в БД: {image.path}")
             else:

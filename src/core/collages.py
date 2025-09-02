@@ -2,19 +2,21 @@
 Бизнес-логика для работы с коллажами
 """
 
+import glob
 import logging
 import os
-import tempfile
 import shutil
+import tempfile
 import uuid
 import zipfile
 from typing import List
 
+from fastapi import HTTPException, status
+
 from src.core.collage_creator import CollageCreator
 from src.core.images import ImageService
-from src.database.schema.images import ImagesDb
+
 from src.models.models import ImageWithProduct
-from fastapi import HTTPException, status
 
 
 class CollageService:
@@ -95,13 +97,13 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.info("Товары не найдены")
+                logging.info("Products not found")
                 return {
                     "total_images": 0,
                     "total_batches": 0,
                     "batch_size": 12,
                     "has_images": False,
-                    "message": "Товары не найдены",
+                    "message": "Products not found",
                 }
 
             total_images = len(all_images_db)
@@ -117,7 +119,7 @@ class CollageService:
                 "batch_size": batch_size,
                 "has_images": True,
                 "products": products_info,
-                "message": f"Найдено {total_images} товаров. Можно создать {total_batches} коллажей по {batch_size} товаров в каждом.",
+                "message": f"Found {total_images} products. Can create {total_batches} collages with {batch_size} products each.",
             }
 
             logging.info(f"Информация о продуктах получена: {total_images} товаров")
@@ -154,10 +156,10 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.warning("Товары не найдены")
+                logging.warning("Products not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Товары не найдены",
+                    detail="Products not found",
                 )
 
             total_images = len(all_images_db)
@@ -202,7 +204,7 @@ class CollageService:
                 "has_more": end_index < total_images,
                 "next_start_index": end_index if end_index < total_images else -1,
                 "filename": collage_filename,
-                "message": f"Коллаж {batch_number} из {total_batches} (товары {start_index + 1}-{end_index} из {total_images})",
+                "message": f"Collage {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
             }
 
             logging.info(f"Коллаж пакета создан: {collage_filename}")
@@ -241,10 +243,10 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.warning("Товары не найдены")
+                logging.warning("Products not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Товары не найдены",
+                    detail="Products not found",
                 )
 
             # Создаем временную папку для коллажей
@@ -299,7 +301,7 @@ class CollageService:
                 "total_images": total_images,
                 "batch_size": batch_size,
                 "zip_filename": f"all_collages_{uuid.uuid4().hex[:8]}.zip",
-                "message": f"Создано {total_batches} коллажей из {total_images} товаров",
+                "message": f"Created {total_batches} collages from {total_images} products",
             }
 
             logging.info(
@@ -341,10 +343,10 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.warning("Товары не найдены")
+                logging.warning("Products not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Товары не найдены",
+                    detail="Products not found",
                 )
 
             total_images = len(all_images_db)
@@ -381,7 +383,7 @@ class CollageService:
                 "has_more": has_more,
                 "next_start_index": next_start_index,
                 "batch_products": batch_products,
-                "message": f"Пакет {batch_number} из {total_batches} (товары {start_index + 1}-{end_index} из {total_images})",
+                "message": f"Batch {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
             }
 
             logging.info(
@@ -410,13 +412,13 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.info("Товары не найдены")
+                logging.info("Products not found")
                 return {
                     "total_images": 0,
                     "total_batches": 0,
                     "batch_size": 12,
                     "has_images": False,
-                    "message": "Товары не найдены",
+                    "message": "Products not found",
                 }
 
             total_images = len(all_images_db)
@@ -428,7 +430,7 @@ class CollageService:
                 "total_batches": total_batches,
                 "batch_size": batch_size,
                 "has_images": True,
-                "message": f"Найдено {total_images} товаров. Можно создать {total_batches} коллажей по {batch_size} товаров в каждом.",
+                "message": f"Found {total_images} products. Can create {total_batches} collages with {batch_size} products each.",
             }
 
             logging.info(
@@ -451,8 +453,6 @@ class CollageService:
         logging.info("Очистка временных файлов коллажей")
 
         try:
-            import glob
-
             # Очищаем временные файлы в /tmp
             temp_patterns = ["/tmp/collages_*", "/tmp/tmp*", "/tmp/*.jpg", "/tmp/*.zip"]
 

@@ -57,7 +57,6 @@ class DatabaseConnection:
     def with_session(
         self, func: Callable[..., Awaitable[T]]
     ) -> Callable[..., Awaitable[T]]:
-
         @wraps(func)
         async def wrapper(*args, **kwargs):
             async with self.get_session() as session:

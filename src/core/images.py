@@ -9,6 +9,7 @@ from fastapi import UploadFile, Request, HTTPException, status
 from src.database.repository.images import ImagesRepository
 from src.database.schema.images import ImagesDb
 from src.models.models import ImageWithProduct
+from src.utils.file import create_path, create_uuid, created_file, delete_file
 # Заменены кастомные исключения на стандартные HTTPException
 
 
@@ -223,8 +224,6 @@ class ImageService:
             await ImagesRepository.update(image_id, new_path)
 
             # Удаляем старый файл
-            from src.utils.file import delete_file
-
             await delete_file(existing_image.path)
 
             logging.info(f"Изображение успешно обновлено: {new_path}")
@@ -262,10 +261,10 @@ class ImageService:
                     "name": img.product.name,
                     "description": img.product.description,
                     "price": img.product.price,
-                    "category_id": img.product.category_id,
-                    "category_name": img.product.category.name
-                    if img.product.category
-                    else None,
+                    "categories": [
+                        {"id": cat.id, "name": cat.name, "description": cat.description}
+                        for cat in img.product.categories
+                    ],
                     "image_id": img.id,
                     "image_path": f"{base_url}/media/{img.id}",
                 }
@@ -299,10 +298,9 @@ class ImageService:
                 "product_id": img.product_id,
                 "name": img.product.name,
                 "description": img.product.description,
-                "category_id": img.product.category_id,
-                "category_name": img.product.category.name
-                if img.product.category
-                else None,
+                "categories": [
+                    {"id": cat.id, "name": cat.name} for cat in img.product.categories
+                ],
                 "price": img.product.price,
                 "path": img.path,
             })
@@ -326,8 +324,6 @@ async def handle_file_upload(image: UploadFile, tag: str) -> str:
     Raises:
         InvalidFileError: Если файл неверный
     """
-    from src.utils.file import create_uuid, create_path, created_file
-
     if not image.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

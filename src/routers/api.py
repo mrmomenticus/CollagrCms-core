@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import yaml
 
 
 from src.routers.categories import router as categories_router
@@ -33,3 +34,7 @@ app.include_router(categories_router)
 app.include_router(products_router)
 app.include_router(images_router)
 app.include_router(collages_router)
+
+
+with open("docs/openapi.yaml", "w") as f:
+    yaml.dump(app.openapi(), f, indent=3)

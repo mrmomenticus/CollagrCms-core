@@ -4,11 +4,25 @@ API роутеры для работы с категориями
 
 import logging
 from typing import List
-from fastapi import APIRouter, Form, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 
 from src.core.categories import CategoryService
 from src.models.models import Category
 # Заменены кастомные исключения на стандартные - импорт больше не нужен
+
+
+class CategoryCreateRequest(BaseModel):
+    name: str
+    description: str | None = None
+    is_active: bool = True
+
+
+class CategoryUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    is_active: bool | None = None
+
 
 # Создаем роутер для категорий
 router = APIRouter(prefix="/categories", tags=["categories"])
@@ -136,20 +150,21 @@ async def get_category(category_id: int):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=Category)
-async def create_category(name: str = Form(...), description: str = Form(None)):
+async def create_category(request: CategoryCreateRequest):
     """
     Создает новую категорию
 
     Args:
-        name: Название категории
-        description: Описание категории
+        request: Данные для создания категории
 
     Returns:
         Созданная категория
     """
-    logging.info(f"API запрос: создание категории {name}")
+    logging.info(f"API запрос: создание категории {request.name}")
     try:
-        category = await CategoryService.create_category(name, description)
+        category = await CategoryService.create_category(
+            request.name, request.description
+        )
         logging.info(
             f"API ответ: категория создана {category.name} (ID: {category.id})"
         )
@@ -157,25 +172,21 @@ async def create_category(name: str = Form(...), description: str = Form(None)):
     except HTTPException as e:
         raise e
     except Exception as e:
-        logging.error(f"API ошибка при создании категории {name}: {e}")
+        logging.error(f"API ошибка при создании категории {request.name}: {e}")
         raise HTTPException(status_code=500, detail="Ошибка создания категории") from e
 
 
 @router.put("/{category_id}", response_model=Category)
 async def update_category(
     category_id: int,
-    name: str = Form(None),
-    description: str = Form(None),
-    is_active: bool = Form(None),
+    request: CategoryUpdateRequest,
 ):
     """
     Обновляет категорию
 
     Args:
         category_id: ID категории
-        name: Новое название категории
-        description: Новое описание категории
-        is_active: Статус активности
+        request: Данные для обновления категории
 
     Returns:
         Обновленная категория
@@ -183,7 +194,7 @@ async def update_category(
     logging.info(f"API запрос: обновление категории ID {category_id}")
     try:
         category = await CategoryService.update_category(
-            category_id, name, description, is_active
+            category_id, request.name, request.description, request.is_active
         )
         logging.info(f"API ответ: категория обновлена {category.name}")
         return category

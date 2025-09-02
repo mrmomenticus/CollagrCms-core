@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import ForeignKey, Table, Column, Integer
 
-from src.database.schema.categories import CategoryDb
 from src.database.schema.images import ImagesDb
 from .base import BaseModel
 
@@ -27,6 +26,6 @@ class ProductDb(BaseModel):
     )  # noqa: F821
 
     # Связь с категориями (many-to-many)
-    categories: Mapped[list["CategoryDb"]] = relationship(
+    categories: Mapped[list["CategoryDb"]] = relationship( # type: ignore  # noqa: F821
         "CategoryDb", secondary=product_categories, back_populates="products"
     )

@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from src.database.schema.products import ProductDb
 from .base import BaseModel
 
 
@@ -12,6 +11,6 @@ class CategoryDb(BaseModel):
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
 
     # Связь с продуктами (many-to-many)
-    products: Mapped[list["ProductDb"]] = relationship(
+    products: Mapped[list["ProductDb"]] = relationship(  # noqa: F821 # type: ignore
         "ProductDb", secondary="product_categories", back_populates="categories"
     )

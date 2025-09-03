@@ -24,7 +24,7 @@ class CollageService:
 
     @staticmethod
     async def create_collage_by_ids(
-        list_id: List[int], filename: str = "collage.jpg"
+        list_id: List[int], filename: str = "collage.jpg", is_overlay: bool = True
     ) -> str:
         """
         Создает коллаж из выбранных изображений по их ID
@@ -69,7 +69,7 @@ class CollageService:
             image_models = [ImageWithProduct.model_validate(img) for img in images_db]
 
             # Создаем коллаж
-            collage_path = CollageCreator().create(image_models, filename)
+            collage_path = CollageCreator().create(image_models, filename, is_overlay)
             logging.info(f"Коллаж успешно создан: {collage_path}")
             return collage_path
 
@@ -80,7 +80,7 @@ class CollageService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при создании коллажа: {e}",
-            )
+            ) from e
 
     @staticmethod
     async def get_all_products_info() -> dict:

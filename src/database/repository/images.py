@@ -1,6 +1,6 @@
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import select, case
 from src.database.schema.images import ImagesDb
 from src.database.schema.products import ProductDb
 from src.database.connection import db
@@ -100,23 +100,35 @@ class ImagesRepository:
 
         try:
             if list_id_products:
+                # Создаем case для сохранения порядка
+                order_case = case(
+                    {id_val: index for index, id_val in enumerate(list_id_products)},
+                    value=ImagesDb.product_id,
+                )
                 result = await session.execute(
                     select(ImagesDb)
                     .options(
                         joinedload(ImagesDb.product).joinedload(ProductDb.categories)
                     )
                     .where(ImagesDb.product_id.in_(list_id_products))
+                    .order_by(order_case)
                 )
                 images = result.unique().scalars().all()
                 logging.info(f"Найдено изображений по ID продуктов: {len(images)}")
                 return images
             if list_id_images:
+                # Создаем case для сохранения порядка
+                order_case = case(
+                    {id_val: index for index, id_val in enumerate(list_id_images)},
+                    value=ImagesDb.id,
+                )
                 result = await session.execute(
                     select(ImagesDb)
                     .options(
                         joinedload(ImagesDb.product).joinedload(ProductDb.categories)
                     )
                     .where(ImagesDb.id.in_(list_id_images))
+                    .order_by(order_case)
                 )
                 images = result.unique().scalars().all()
                 logging.info(f"Найдено изображений по ID: {len(images)}")

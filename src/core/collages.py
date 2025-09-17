@@ -131,7 +131,7 @@ class CollageService:
 
     @staticmethod
     async def create_batch_collage(
-        batch_size: int = 12, start_index: int = 0
+        batch_size: int = 12, start_index: int = 0, is_overlay: bool = True
     ) -> tuple[str, dict]:
         """
         Создает коллаж из текущего пакета товаров
@@ -191,7 +191,7 @@ class CollageService:
 
             # Создаем временный файл
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-                collage_path = CollageCreator().create(image_models, tmp_file.name)
+                collage_path = CollageCreator().create(image_models, tmp_file.name, is_overlay)
 
             # Информация о пакете
             batch_info = {
@@ -217,10 +217,12 @@ class CollageService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при создании коллажа пакета: {e}",
-            )
+            ) from e
 
     @staticmethod
-    async def create_all_collages_zip(batch_size: int = 12) -> tuple[str, dict]:
+    async def create_all_collages_zip(
+        batch_size: int = 12, is_overlay: bool = True
+    ) -> tuple[str, dict]:
         """
         Создает все коллажи из всех товаров и упаковывает в ZIP-архив
 
@@ -277,7 +279,7 @@ class CollageService:
                         )
                         collage_path = os.path.join(temp_collages_dir, collage_filename)
 
-                        CollageCreator().create(image_models, collage_path)
+                        CollageCreator().create(image_models, collage_path, is_overlay)
 
                         # Добавляем файл в ZIP-архив
                         zip_file.write(collage_path, collage_filename)
@@ -316,7 +318,7 @@ class CollageService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при создании всех коллажей: {e}",
-            )
+            ) from e
 
     @staticmethod
     async def get_batch_info(start_index: int = 0, batch_size: int = 12) -> dict:

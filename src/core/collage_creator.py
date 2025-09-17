@@ -83,25 +83,25 @@ class CollageCreator:
                 [(i, i), (canvas_width - 1 - i, canvas_height - 1 - i)],
                 outline=self._border_color,
             )
-        if is_overlay:
-            # Overlay для 900x900
-            overlay = Overlay(self._cell_size, self._cell_size)
-            # Размещаем изображения
-            for idx, img_model in enumerate(image_models):
-                try:
-                    img = Image.open(img_model.path)
-                    cell_img, img_box = self._resize_image_to_cell(img)
+        # Overlay для 900x900, если нужно
+        overlay = Overlay(self._cell_size, self._cell_size) if is_overlay else None
+        # Размещаем изображения
+        for idx, img_model in enumerate(image_models):
+            try:
+                img = Image.open(img_model.path)
+                cell_img, img_box = self._resize_image_to_cell(img)
+                if is_overlay and overlay:
                     cell_img = overlay.add_text_overlay(cell_img, img_model, img_box)
-                    row = idx // grid_cols
-                    col = idx % grid_cols
-                    x = col * (self._cell_size + self._cell_margin)
-                    y = row * (self._cell_size + self._cell_margin)
-                    collage.paste(cell_img, (x, y))
-                except Exception as e:
-                    logging.error(
-                        f"Ошибка при обработке изображения {img_model.path}: {e}"
-                    )
-                    raise
+                row = idx // grid_cols
+                col = idx % grid_cols
+                x = col * (self._cell_size + self._cell_margin)
+                y = row * (self._cell_size + self._cell_margin)
+                collage.paste(cell_img, (x, y))
+            except Exception as e:
+                logging.error(
+                    f"Ошибка при обработке изображения {img_model.path}: {e}"
+                )
+                raise
         collage.save(output_path, "JPEG", quality=95)
         logging.info(
             f"Коллаж сохранён в {output_path} (сетка: {grid_cols}x{grid_rows}, изображений: {image_count})"

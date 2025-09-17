@@ -15,7 +15,7 @@ router = APIRouter(prefix="/collage", tags=["collages"])
 
 
 @router.get("/")
-async def create_collage(list_id: List[int] = Query(..., min_length=1, max_length=12)):  # noqa: B008
+async def create_collage(list_id: List[int] = Query(..., min_length=1, max_length=12), is_overlay: bool = True):  # noqa: B008
     """
     Создает коллаж из выбранных изображений
 
@@ -36,7 +36,7 @@ async def create_collage(list_id: List[int] = Query(..., min_length=1, max_lengt
 
     try:
         collage_path = await CollageService.create_collage_by_ids(
-            list_id, "collage.jpg"
+            list_id, "collage.jpg", is_overlay
         )
 
         logging.info("API ответ: коллаж создан и возвращен")
@@ -77,7 +77,7 @@ async def get_all_product_for_collage():
 @router.get("/batch/")
 async def create_batch_collage(
     batch_size: int = Query(default=12, ge=1, le=12),
-    start_index: int = Query(default=0, ge=0),
+    start_index: int = Query(default=0, ge=0), is_overlay: bool = True
 ):
     """
     Создает коллаж из текущего пакета товаров (по умолчанию 12 штук)
@@ -95,7 +95,7 @@ async def create_batch_collage(
     )
     try:
         collage_path, batch_info = await CollageService.create_batch_collage(
-            batch_size, start_index
+            batch_size, start_index, is_overlay
         )
 
         # Отправляем файл пользователю для скачивания
@@ -132,7 +132,7 @@ async def create_batch_collage(
 
 @router.get("/batch/all/")
 async def create_all_collage_info(
-    batch_size: int = Query(default=12, ge=1, le=12),
+    batch_size: int = Query(default=12, ge=1, le=12)
 ):
     """
     Создает все коллажи из всех товаров, обрабатывая их пакетами
@@ -176,7 +176,7 @@ async def create_all_collage_info(
 
 @router.get("/batch/all/download/")
 async def create_and_dowload_all_collages(
-    batch_size: int = Query(default=12, ge=1, le=12),
+    batch_size: int = Query(default=12, ge=1, le=12), is_overlay: bool = True
 ):
     """
     Создает все коллажи из всех товаров и отправляет их пользователю в виде ZIP-архива
@@ -193,7 +193,7 @@ async def create_and_dowload_all_collages(
     )
     try:
         zip_path, creation_info = await CollageService.create_all_collages_zip(
-            batch_size
+            batch_size, is_overlay
         )
 
         # Отправляем ZIP-файл пользователю

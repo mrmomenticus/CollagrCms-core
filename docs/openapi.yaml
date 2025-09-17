@@ -477,6 +477,13 @@ paths:
                minItems: 1
                title: List Id
                type: array
+         -  in: query
+            name: is_overlay
+            required: false
+            schema:
+               default: true
+               title: Is Overlay
+               type: boolean
          responses:
             '200':
                content:
@@ -532,6 +539,13 @@ paths:
                minimum: 0
                title: Start Index
                type: integer
+         -  in: query
+            name: is_overlay
+            required: false
+            schema:
+               default: true
+               title: Is Overlay
+               type: boolean
          responses:
             '200':
                content:
@@ -621,6 +635,13 @@ paths:
                minimum: 1
                title: Batch Size
                type: integer
+         -  in: query
+            name: is_overlay
+            required: false
+            schema:
+               default: true
+               title: Is Overlay
+               type: boolean
          responses:
             '200':
                content:

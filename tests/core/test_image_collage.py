@@ -1,7 +1,7 @@
 import os
 import pytest
 from PIL import Image
-from src.models.models import ImageWithProduct, Product
+from src.models.models import ImageWithProduct, Product, Category
 from src.core.collage_creator import CollageCreator
 
 
@@ -10,11 +10,11 @@ def create_test_image(id: int, name: str, category: str, price: int, description
     return ImageWithProduct(
         id=id,
         product_id=id,
-        path=f"/home/mrmomenticus/Repos/CollagrCms-core/tests/core/img/input/{id}.jpg",
+        path=f"tests/core/img/input/{id}.jpg",
         product=Product(
             id=id,
             name=name,
-            category=category,
+            categories=[Category(id=id, name=category, description="")],
             price=price,
             description=description,
         ),
@@ -84,6 +84,41 @@ def test_invalid_image_count():
         creator._calculate_grid_dimensions(0)
     with pytest.raises(ValueError, match="Количество изображений должно быть от 1 до 12"):
         creator.create([], "test.jpg")
-    images = [create_test_image(i, f"Товар {i}", "Тест", 1000, f"Описание {i}") for i in range(1, 14)]
+    images = [create_test_image(i, f"Товар {i}", "Тест", 100, f"Описание {i}") for i in range(1, 14)]
     with pytest.raises(ValueError, match="Количество изображений должно быть от 1 до 12"):
         creator.create(images, "test.jpg")
+
+
+def test_resize_image_to_cell():
+    """Тест метода _resize_image_to_cell с изображениями разных размеров"""
+    creator = CollageCreator()
+    
+    # Создаем тестовое изображение 1000x1200 (вертикальное)
+    img_vertical = Image.new("RGB", (1000, 1200), color="red")
+    resized_img, box = creator._resize_image_to_cell(img_vertical)
+    assert resized_img.size == (900, 900), f"Размер должен быть 900x900, получен: {resized_img.size}"
+    assert box == (0, 0, 900, 900), f"Box должен быть (0, 0, 900, 900), получен: {box}"
+    
+    # Создаем тестовое изображение 1200x1000 (горизонтальное)
+    img_horizontal = Image.new("RGB", (1200, 1000), color="blue")
+    resized_img, box = creator._resize_image_to_cell(img_horizontal)
+    assert resized_img.size == (900, 900), f"Размер должен быть 900x900, получен: {resized_img.size}"
+    assert box == (0, 0, 900, 900), f"Box должен быть (0, 0, 900, 900), получен: {box}"
+    
+    # Создаем тестовое изображение 800x600 (горизонтальное, меньше 900)
+    img_small_horizontal = Image.new("RGB", (800, 600), color="green")
+    resized_img, box = creator._resize_image_to_cell(img_small_horizontal)
+    assert resized_img.size == (900, 900), f"Размер должен быть 900x900, получен: {resized_img.size}"
+    assert box == (0, 0, 900, 900), f"Box должен быть (0, 0, 900, 900), получен: {box}"
+    
+    # Создаем тестовое изображение 600x800 (вертикальное, меньше 900)
+    img_small_vertical = Image.new("RGB", (600, 800), color="yellow")
+    resized_img, box = creator._resize_image_to_cell(img_small_vertical)
+    assert resized_img.size == (900, 900), f"Размер должен быть 900x900, получен: {resized_img.size}"
+    assert box == (0, 0, 900, 900), f"Box должен быть (0, 0, 900, 900), получен: {box}"
+    
+    # Создаем тестовое изображение 900x900 (уже правильного размера)
+    img_correct = Image.new("RGB", (900, 900), color="purple")
+    resized_img, box = creator._resize_image_to_cell(img_correct)
+    assert resized_img.size == (900, 900), f"Размер должен быть 900x900, получен: {resized_img.size}"
+    assert box == (0, 0, 900, 900), f"Box должен быть (0, 0, 900, 900), получен: {box}"

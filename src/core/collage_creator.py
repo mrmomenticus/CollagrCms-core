@@ -38,12 +38,29 @@ class CollageCreator:
 
     def _resize_image_to_cell(self, img: Image.Image):
         """
-        Изменяет размер изображения до 900x900 без полос: если меньше — растягивает, если больше — сжимает пропорционально.
+        Изменяет размер изображения до 900x900 с сохранением пропорций и обрезкой.
+        Изображение масштабируется так, чтобы короткая сторона стала 900, затем обрезается по центру до 900x900.
         Возвращает картинку и box (0, 0, 900, 900) для совместимости с overlay.
         """
-        cell_img = img.resize(
-            (self._cell_size, self._cell_size), Image.Resampling.LANCZOS
-        )
+        original_width, original_height = img.size
+        
+        # Определяем коэффициент масштабирования, чтобы короткая сторона стала 900
+        scale_factor = self._cell_size / min(original_width, original_height)
+        
+        # Новые размеры после масштабирования
+        new_width = int(original_width * scale_factor)
+        new_height = int(original_height * scale_factor)
+        
+        # Масштабируем изображение
+        scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Обрезаем до 900x900 по центру
+        left = (new_width - self._cell_size) // 2
+        top = (new_height - self._cell_size) // 2
+        right = left + self._cell_size
+        bottom = top + self._cell_size
+        
+        cell_img = scaled_img.crop((left, top, right, bottom))
         return cell_img, (0, 0, self._cell_size, self._cell_size)
 
     def create(

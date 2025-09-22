@@ -15,12 +15,13 @@ router = APIRouter(prefix="/collage", tags=["collages"])
 
 
 @router.get("/")
-async def create_collage(list_id: List[int] = Query(..., min_length=1, max_length=12), is_overlay: bool = True):  # noqa: B008
+async def create_collage(list_id: List[int] = Query(..., min_length=1, max_length=12), is_price: bool = True):  # noqa: B008
     """
     Создает коллаж из выбранных изображений
 
     Args:
         list_id: Список ID изображений (от 1 до 12)
+        is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
     Returns:
         Файл коллажа в формате JPEG
@@ -36,7 +37,7 @@ async def create_collage(list_id: List[int] = Query(..., min_length=1, max_lengt
 
     try:
         collage_path = await CollageService.create_collage_by_ids(
-            list_id, "collage.jpg", is_overlay
+            list_id, "collage.jpg", is_price
         )
 
         logging.info("API ответ: коллаж создан и возвращен")
@@ -77,7 +78,7 @@ async def get_all_product_for_collage():
 @router.get("/batch/")
 async def create_batch_collage(
     batch_size: int = Query(default=12, ge=1, le=12),
-    start_index: int = Query(default=0, ge=0), is_overlay: bool = True
+    start_index: int = Query(default=0, ge=0), is_price: bool = True
 ):
     """
     Создает коллаж из текущего пакета товаров (по умолчанию 12 штук)
@@ -86,6 +87,7 @@ async def create_batch_collage(
     Args:
         batch_size: Размер пакета (по умолчанию 12)
         start_index: Начальный индекс для обработки
+        is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
     Returns:
         Файл коллажа для скачивания
@@ -95,7 +97,7 @@ async def create_batch_collage(
     )
     try:
         collage_path, batch_info = await CollageService.create_batch_collage(
-            batch_size, start_index, is_overlay
+            batch_size, start_index, is_price
         )
 
         # Отправляем файл пользователю для скачивания
@@ -176,7 +178,7 @@ async def create_all_collage_info(
 
 @router.get("/batch/all/download/")
 async def create_and_dowload_all_collages(
-    batch_size: int = Query(default=12, ge=1, le=12), is_overlay: bool = True
+    batch_size: int = Query(default=12, ge=1, le=12), is_price: bool = True
 ):
     """
     Создает все коллажи из всех товаров и отправляет их пользователю в виде ZIP-архива
@@ -184,6 +186,7 @@ async def create_and_dowload_all_collages(
 
     Args:
         batch_size: Размер пакета (по умолчанию 12)
+        is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
     Returns:
         ZIP-архив со всеми созданными коллажами
@@ -193,7 +196,7 @@ async def create_and_dowload_all_collages(
     )
     try:
         zip_path, creation_info = await CollageService.create_all_collages_zip(
-            batch_size, is_overlay
+            batch_size, is_price
         )
 
         # Отправляем ZIP-файл пользователю

@@ -36,7 +36,7 @@ def test_collage_creation_9_images(output_path):
         create_test_image(9, "Абстракция", "Картины", 2200, "Абстрактная геометрия в ярких цветах"),
     ]
     creator = CollageCreator()
-    result_path = creator.create(images, output_path)
+    result_path = creator.create(images, output_path, is_price=True)
     assert os.path.exists(result_path)
     
     # Проверяем размеры A3 (горизонтальный)
@@ -56,7 +56,7 @@ def test_collage_creation_dynamic_sizes(image_count):
     ]
     output_path = f"test_collage_{image_count}_images.jpg"
     creator = CollageCreator()
-    result_path = creator.create(images, output_path)
+    result_path = creator.create(images, output_path, is_price=True)
     assert os.path.exists(result_path)
     cols, rows = creator._calculate_grid_dimensions(image_count)
     expected_size = (
@@ -83,10 +83,10 @@ def test_invalid_image_count():
     with pytest.raises(ValueError, match="Количество изображений должно быть больше 0"):
         creator._calculate_grid_dimensions(0)
     with pytest.raises(ValueError, match="Количество изображений должно быть от 1 до 12"):
-        creator.create([], "test.jpg")
-    images = [create_test_image(i, f"Товар {i}", "Тест", 100, f"Описание {i}") for i in range(1, 14)]
+        creator.create([], "test.jpg", is_price=True)
+    images = [create_test_image(i, f"Товар {i}", "Тест", 10, f"Описание {i}") for i in range(1, 14)]
     with pytest.raises(ValueError, match="Количество изображений должно быть от 1 до 12"):
-        creator.create(images, "test.jpg")
+        creator.create(images, "test.jpg", is_price=True)
 
 
 def test_resize_image_to_cell():

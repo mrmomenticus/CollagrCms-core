@@ -89,7 +89,7 @@ class Overlay:
         return price_font, desc_font, price_font_size
 
     def add_text_overlay(
-        self, img: Image.Image, img_model: ImageWithProduct, img_box=None
+        self, img: Image.Image, img_model: ImageWithProduct, img_box=None, is_price=True
     ) -> Image.Image:
         img_with_overlay = img.copy()
         overlay_top, overlay_bottom, overlay_height, width, height = (
@@ -110,18 +110,19 @@ class Overlay:
         draw = ImageDraw.Draw(img_with_overlay)
         # Fonts
         price_font, desc_font, price_font_size = self._get_fonts(overlay_height)
-        # Цена
-        price_text = str(img_model.product.price) + " ₽"
+        # Цена (если is_price=True)
         price_y = overlay_top + 10
-        draw.text(
-            (margin_x, price_y),
-            price_text,
-            font=price_font,
-            fill=self._price_color,
-        )
+        if is_price:
+            price_text = str(img_model.product.price) + " ₽"
+            draw.text(
+                (margin_x, price_y),
+                price_text,
+                font=price_font,
+                fill=self._price_color,
+            )
         # Описание
         desc_max_width = width - 2 * margin_x
-        desc_y = price_y + price_font_size + 10
+        desc_y = price_y + (price_font_size + 10 if is_price else 0)
         desc_max_height = overlay_bottom - desc_y - 10
         description = str(img_model.product.description)[: self._max_description_length]
         fitted_text = self._fit_text_to_overlay(

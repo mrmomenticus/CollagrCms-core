@@ -24,7 +24,7 @@ class CollageService:
 
     @staticmethod
     async def create_collage_by_ids(
-        list_id: List[int], filename: str = "collage.jpg", is_overlay: bool = True
+        list_id: List[int], filename: str = "collage.jpg", is_price: bool = True
     ) -> str:
         """
         Создает коллаж из выбранных изображений по их ID
@@ -32,6 +32,7 @@ class CollageService:
         Args:
             list_id: Список ID изображений (от 1 до 12)
             filename: Имя файла коллажа
+            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
         Returns:
             Путь к созданному коллажу
@@ -69,7 +70,7 @@ class CollageService:
             image_models = [ImageWithProduct.model_validate(img) for img in images_db]
 
             # Создаем коллаж
-            collage_path = CollageCreator().create(image_models, filename, is_overlay)
+            collage_path = CollageCreator().create(image_models, filename, is_price)
             logging.info(f"Коллаж успешно создан: {collage_path}")
             return collage_path
 
@@ -131,7 +132,7 @@ class CollageService:
 
     @staticmethod
     async def create_batch_collage(
-        batch_size: int = 12, start_index: int = 0, is_overlay: bool = True
+        batch_size: int = 12, start_index: int = 0, is_price: bool = True
     ) -> tuple[str, dict]:
         """
         Создает коллаж из текущего пакета товаров
@@ -139,6 +140,7 @@ class CollageService:
         Args:
             batch_size: Размер пакета (по умолчанию 12)
             start_index: Начальный индекс для обработки
+            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
         Returns:
             Кортеж (путь_к_коллажу, информация_о_пакете)
@@ -191,7 +193,7 @@ class CollageService:
 
             # Создаем временный файл
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-                collage_path = CollageCreator().create(image_models, tmp_file.name, is_overlay)
+                collage_path = CollageCreator().create(image_models, tmp_file.name, is_price)
 
             # Информация о пакете
             batch_info = {
@@ -221,13 +223,14 @@ class CollageService:
 
     @staticmethod
     async def create_all_collages_zip(
-        batch_size: int = 12, is_overlay: bool = True
+        batch_size: int = 12, is_price: bool = True
     ) -> tuple[str, dict]:
         """
         Создает все коллажи из всех товаров и упаковывает в ZIP-архив
 
         Args:
             batch_size: Размер пакета (по умолчанию 12)
+            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
         Returns:
             Кортеж (путь_к_zip_файлу, информация_о_создании)
@@ -279,7 +282,7 @@ class CollageService:
                         )
                         collage_path = os.path.join(temp_collages_dir, collage_filename)
 
-                        CollageCreator().create(image_models, collage_path, is_overlay)
+                        CollageCreator().create(image_models, collage_path, is_price)
 
                         # Добавляем файл в ZIP-архив
                         zip_file.write(collage_path, collage_filename)

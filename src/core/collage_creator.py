@@ -67,13 +67,14 @@ class CollageCreator:
         self,
         image_models: list[ImageWithProduct],
         output_path: str,
-        is_overlay: bool = True,
+        is_price: bool = True,
     ) -> str:
         """
         Создает коллаж из переданных изображений, все изображения 900x900, холст минимального размера.
         Args:
             image_models: Список изображений с продуктами (от 1 до 12)
             output_path: Путь для сохранения коллажа
+            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
         Returns:
             Путь к созданному коллажу
         """
@@ -100,15 +101,15 @@ class CollageCreator:
                 [(i, i), (canvas_width - 1 - i, canvas_height - 1 - i)],
                 outline=self._border_color,
             )
-        # Overlay для 900x900, если нужно
-        overlay = Overlay(self._cell_size, self._cell_size) if is_overlay else None
+        # Overlay для 900x900 всегда создается, но цена добавляется в зависимости от is_price
+        overlay = Overlay(self._cell_size, self._cell_size)
         # Размещаем изображения
         for idx, img_model in enumerate(image_models):
             try:
                 img = Image.open(img_model.path)
                 cell_img, img_box = self._resize_image_to_cell(img)
-                if is_overlay and overlay:
-                    cell_img = overlay.add_text_overlay(cell_img, img_model, img_box)
+                # Всегда добавляем оверлей, но с ценой или без в зависимости от is_price
+                cell_img = overlay.add_text_overlay(cell_img, img_model, img_box, is_price)
                 row = idx // grid_cols
                 col = idx % grid_cols
                 x = col * (self._cell_size + self._cell_margin)

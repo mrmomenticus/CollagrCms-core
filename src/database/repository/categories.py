@@ -58,7 +58,7 @@ class CategoryRepository:
         logging.info("Получение всех активных категорий из БД")
         try:
             result = await session.execute(
-                select(CategoryDb).where(CategoryDb.is_active)
+                select(CategoryDb).where(CategoryDb.is_active).order_by(CategoryDb.name)
             )
             categories = result.scalars().all()
             logging.info(f"Получено активных категорий из БД: {len(categories)}")
@@ -84,7 +84,7 @@ class CategoryRepository:
         """
         logging.info("Получение всех категорий из БД (включая неактивные)")
         try:
-            result = await session.execute(select(CategoryDb))
+            result = await session.execute(select(CategoryDb).order_by(CategoryDb.name))
             categories = result.scalars().all()
             logging.info(f"Получено всех категорий из БД: {len(categories)}")
             return categories
@@ -111,7 +111,8 @@ class CategoryRepository:
         logging.info(f"Получение категории из БД по ID: {category_id}")
         try:
             result = await session.execute(
-                select(CategoryDb).where(CategoryDb.id == category_id)
+                select(CategoryDb).where(CategoryDb.id == category_id).order_by(
+                    CategoryDb.name)
             )
             category = result.scalars().first()
             if category:
@@ -144,7 +145,7 @@ class CategoryRepository:
         logging.info(f"Получение категории из БД по названию: {name}")
         try:
             result = await session.execute(
-                select(CategoryDb).where(CategoryDb.name == name, CategoryDb.is_active)
+                select(CategoryDb).where(CategoryDb.name == name, CategoryDb.is_active).order_by(CategoryDb.name)
             )
             category = result.scalars().first()
             if category:

@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import uuid
 import zipfile
-from typing import List
+from typing import List, Optional
 
 from fastapi import HTTPException, status
 
@@ -131,8 +131,78 @@ class CollageService:
             raise
 
     @staticmethod
+    async def get_products_by_categories(category_names: Optional[List[str]] = None) -> dict:
+        """
+        Возвращает информацию о товарах по заданным категориям для создания коллажей
+
+        Args:
+            category_names: Список названий категорий для фильтрации
+
+        Returns:
+            Словарь с информацией о товарах и возможностях создания коллажей
+        """
+        logging.info(f"Получение информации о продуктах для категорий: {category_names}")
+
+        try:
+            # Получаем все изображения с товарами
+            all_images_db = await ImageService.get_all_images_with_products()
+
+            if not all_images_db:
+                logging.info("Products not found")
+                return {
+                    "total_images": 0,
+                    "total_batches": 0,
+                    "batch_size": 12,
+                    "has_images": False,
+                    "message": "Products not found",
+                }
+
+            # Фильтруем по категориям, если указаны
+            filtered_images_db = all_images_db
+            if category_names:
+                filtered_images_db = [
+                    img for img in all_images_db
+                    if any(cat.name in category_names for cat in img.product.categories)
+                ]
+
+            if not filtered_images_db:
+                logging.info(f"Products not found for categories: {category_names}")
+                return {
+                    "total_images": 0,
+                    "total_batches": 0,
+                    "batch_size": 12,
+                    "has_images": False,
+                    "categories": category_names,
+                    "message": f"Products not found for categories: {category_names}",
+                }
+
+            total_images = len(filtered_images_db)
+            batch_size = 12
+            total_batches = (total_images + batch_size - 1) // batch_size
+
+            # Формируем информацию о товарах
+            products_info = ImageService.format_products_info(filtered_images_db)
+
+            result = {
+                "total_images": total_images,
+                "total_batches": total_batches,
+                "batch_size": batch_size,
+                "has_images": True,
+                "categories": category_names,
+                "products": products_info,
+                "message": f"Found {total_images} products in categories {category_names}. Can create {total_batches} collages with {batch_size} products each.",
+            }
+
+            logging.info(f"Информация о продуктах для категорий получена: {total_images} товаров")
+            return result
+
+        except Exception as e:
+            logging.error(f"Ошибка при получении информации о продуктах по категориям: {e}")
+            raise
+
+    @staticmethod
     async def create_batch_collage(
-        batch_size: int = 12, start_index: int = 0, is_price: bool = True
+        batch_size: int = 12, start_index: int = 0, is_price: bool = True, category_names: Optional[List[str]] = None
     ) -> tuple[str, dict]:
         """
         Создает коллаж из текущего пакета товаров
@@ -141,6 +211,7 @@ class CollageService:
             batch_size: Размер пакета (по умолчанию 12)
             start_index: Начальный индекс для обработки
             is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
+            category_names: Список названий категорий для фильтрации товаров
 
         Returns:
             Кортеж (путь_к_коллажу, информация_о_пакете)
@@ -149,12 +220,17 @@ class CollageService:
             CollageCreationError: Если ошибка создания коллажа
             ImageNotFoundError: Если товары не найдены
         """
-        logging.info(
-            f"Создание коллажа пакета: размер {batch_size}, начальный индекс {start_index}"
-        )
+        if category_names:
+            logging.info(
+                f"Создание коллажа пакета по категориям: {category_names}, размер {batch_size}, начальный индекс {start_index}"
+            )
+        else:
+            logging.info(
+                f"Создание коллажа пакета: размер {batch_size}, начальный индекс {start_index}"
+            )
 
         try:
-            # Получаем все изображения с товарами
+            # Получаем изображения с товарами, возможно, отфильтрованные по категориям
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
@@ -162,6 +238,20 @@ class CollageService:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Products not found",
+                )
+
+            # Фильтруем по категориям, если указаны
+            if category_names:
+                all_images_db = [
+                    img for img in all_images_db
+                    if any(cat.name in category_names for cat in img.product.categories)
+                ]
+
+            if not all_images_db:
+                logging.warning(f"Products not found for categories: {category_names}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Products not found for categories: {category_names}",
                 )
 
             total_images = len(all_images_db)
@@ -206,6 +296,7 @@ class CollageService:
                 "has_more": end_index < total_images,
                 "next_start_index": end_index if end_index < total_images else -1,
                 "filename": collage_filename,
+                "categories": category_names,
                 "message": f"Collage {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
             }
 
@@ -223,7 +314,7 @@ class CollageService:
 
     @staticmethod
     async def create_all_collages_zip(
-        batch_size: int = 12, is_price: bool = True
+        batch_size: int = 12, is_price: bool = True, category_names: Optional[List[str]] = None
     ) -> tuple[str, dict]:
         """
         Создает все коллажи из всех товаров и упаковывает в ZIP-архив
@@ -231,6 +322,7 @@ class CollageService:
         Args:
             batch_size: Размер пакета (по умолчанию 12)
             is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
+            category_names: Список названий категорий для фильтрации товаров
 
         Returns:
             Кортеж (путь_к_zip_файлу, информация_о_создании)
@@ -239,9 +331,14 @@ class CollageService:
             CollageCreationError: Если ошибка создания коллажей
             ImageNotFoundError: Если товары не найдены
         """
-        logging.info(
-            f"Создание всех коллажей в ZIP-архиве с размером пакета {batch_size}"
-        )
+        if category_names:
+            logging.info(
+                f"Создание всех коллажей в ZIP-архиве по категориям: {category_names} с размером пакета {batch_size}"
+            )
+        else:
+            logging.info(
+                f"Создание всех коллажей в ZIP-архиве с размером пакета {batch_size}"
+            )
 
         try:
             # Получаем все изображения с товарами
@@ -252,6 +349,20 @@ class CollageService:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Products not found",
+                )
+
+            # Фильтруем по категориям, если указаны
+            if category_names:
+                all_images_db = [
+                    img for img in all_images_db
+                    if any(cat.name in category_names for cat in img.product.categories)
+                ]
+
+            if not all_images_db:
+                logging.warning(f"Products not found for categories: {category_names}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Products not found for categories: {category_names}",
                 )
 
             # Создаем временную папку для коллажей
@@ -305,8 +416,9 @@ class CollageService:
                 "total_batches": total_batches,
                 "total_images": total_images,
                 "batch_size": batch_size,
+                "categories": category_names,
                 "zip_filename": f"all_collages_{uuid.uuid4().hex[:8]}.zip",
-                "message": f"Created {total_batches} collages from {total_images} products",
+                "message": f"Created {total_batches} collages from {total_images} products in categories {category_names}",
             }
 
             logging.info(
@@ -324,13 +436,14 @@ class CollageService:
             ) from e
 
     @staticmethod
-    async def get_batch_info(start_index: int = 0, batch_size: int = 12) -> dict:
+    async def get_batch_info(start_index: int = 0, batch_size: int = 12, category_names: Optional[List[str]] = None) -> dict:
         """
         Возвращает информацию о текущем пакете товаров без создания коллажа
 
         Args:
             start_index: Начальный индекс для обработки
             batch_size: Размер пакета (по умолчанию 12)
+            category_names: Список названий категорий для фильтрации товаров
 
         Returns:
             Информация о текущем пакете
@@ -339,9 +452,14 @@ class CollageService:
             CollageCreationError: Если индекс выходит за пределы
             ImageNotFoundError: Если товары не найдены
         """
-        logging.info(
-            f"Получение информации о пакете: индекс {start_index}, размер {batch_size}"
-        )
+        if category_names:
+            logging.info(
+                f"Получение информации о пакете по категориям: {category_names}, индекс {start_index}, размер {batch_size}"
+            )
+        else:
+            logging.info(
+                f"Получение информации о пакете: индекс {start_index}, размер {batch_size}"
+            )
 
         try:
             # Получаем все изображения с товарами
@@ -352,6 +470,20 @@ class CollageService:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Products not found",
+                )
+
+            # Фильтруем по категориям, если указаны
+            if category_names:
+                all_images_db = [
+                    img for img in all_images_db
+                    if any(cat.name in category_names for cat in img.product.categories)
+                ]
+
+            if not all_images_db:
+                logging.warning(f"Products not found for categories: {category_names}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Products not found for categories: {category_names}",
                 )
 
             total_images = len(all_images_db)
@@ -388,6 +520,7 @@ class CollageService:
                 "has_more": has_more,
                 "next_start_index": next_start_index,
                 "batch_products": batch_products,
+                "categories": category_names,
                 "message": f"Batch {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
             }
 
@@ -403,14 +536,20 @@ class CollageService:
             raise
 
     @staticmethod
-    async def get_batch_processing_status() -> dict:
+    async def get_batch_processing_status(category_names: Optional[List[str]] = None) -> dict:
         """
         Возвращает статус пакетной обработки коллажей
+
+        Args:
+            category_names: Список названий категорий для фильтрации товаров
 
         Returns:
             Информация о статусе
         """
-        logging.info("Получение статуса пакетной обработки")
+        if category_names:
+            logging.info(f"Получение статуса пакетной обработки для категорий: {category_names}")
+        else:
+            logging.info("Получение статуса пакетной обработки")
 
         try:
             # Получаем все изображения с товарами
@@ -423,7 +562,26 @@ class CollageService:
                     "total_batches": 0,
                     "batch_size": 12,
                     "has_images": False,
+                    "categories": category_names,
                     "message": "Products not found",
+                }
+
+            # Фильтруем по категориям, если указаны
+            if category_names:
+                all_images_db = [
+                    img for img in all_images_db
+                    if any(cat.name in category_names for cat in img.product.categories)
+                ]
+
+            if not all_images_db:
+                logging.info(f"Products not found for categories: {category_names}")
+                return {
+                    "total_images": 0,
+                    "total_batches": 0,
+                    "batch_size": 12,
+                    "has_images": False,
+                    "categories": category_names,
+                    "message": f"Products not found for categories: {category_names}",
                 }
 
             total_images = len(all_images_db)
@@ -435,7 +593,8 @@ class CollageService:
                 "total_batches": total_batches,
                 "batch_size": batch_size,
                 "has_images": True,
-                "message": f"Found {total_images} products. Can create {total_batches} collages with {batch_size} products each.",
+                "categories": category_names,
+                "message": f"Found {total_images} products in categories {category_names}. Can create {total_batches} collages with {batch_size} products each.",
             }
 
             logging.info(

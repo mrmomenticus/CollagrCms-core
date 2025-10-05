@@ -12,8 +12,8 @@ class Overlay:
         self._overlay_height_ratio = 0.25  # overlay = 1/4 высоты изображения
         self._overlay_alpha = 128
         self._text_margin_x = 30
-        self._price_color = (65, 65, 65)
-        self._desc_color = (40, 40, 40)
+        self._price_color = (30, 30, 30)  # Темнее
+        self._desc_color = (20, 20, 20)   # Темнее
         self._price_font_min = 20  # минимальный размер шрифта цены
         self._desc_font_min = 10  # минимальный размер шрифта описания
         self._price_font_overlay_ratio = 0.3  # цена: половина overlay

@@ -1,7 +1,7 @@
 import logging
-import yaml
-from argparse import ArgumentParser
 from typing import Dict, Any, Optional
+from dotenv import load_dotenv
+import os
 
 
 class Config:
@@ -14,54 +14,48 @@ class Config:
 
     def __init__(self) -> None:
         if not hasattr(self, "_initialized"):
-            self._parser = ArgumentParser(description="CollagrCMS Backend Service")
-            self._init_args()
-            self._args: Optional[Any] = None
-            self._config: Dict[str, Any] = {}
+            load_dotenv()  # Load environment variables from .env file
             self._initialized = True
 
-    def _init_args(self) -> None:
-        self._parser.add_argument(
-            "-c", "--config", type=str, required=True, help="Path to configuration file"
-        )
-
-    def parse_args(self) -> None:
-        if self._args is None:
-            logging.debug("Parsing command line arguments")
-            self._args = self._parser.parse_args()
-
     def load(self) -> None:
-        self.parse_args()  # Убедимся, что аргументы распарсены
-
-        if not self._args or not hasattr(self._args, "config"):
-            raise ValueError(
-                "Configuration file path not provided. Use -c or --config option."
-            )
-
-        try:
-            with open(self._args.config, "r") as f:
-                self._config = yaml.safe_load(f)
-                logging.debug("Configuration loaded successfully")
-        except FileNotFoundError:
-            logging.error(f"Configuration file not found: {self._args.config}")
-            raise
-        except yaml.YAMLError as e:
-            logging.error(f"Error parsing configuration file: {e}")
-            raise
+        # Environment variables are loaded automatically by load_dotenv()
+        logging.debug("Environment variables loaded successfully")
 
     def get_config(self) -> Dict[str, Any]:
-        if not self._config:
-            self.load()
-        return self._config
+        # Return a dictionary with all configuration values
+        return {
+            "database": self.get_database_config(),
+            "server": self.get_server_config(),
+            "logger": self.get_logger_config()
+        }
 
     def get_database_config(self) -> Dict[str, Any]:
-        return self.get_config().get("database", {})
+        return {
+            "user": os.getenv("DB_USER", "postgres"),
+            "password": os.getenv("DB_PASSWORD", "postgres"),
+            "host": os.getenv("DB_HOST", "localhost"),
+            "port": int(os.getenv("DB_PORT", "5432")),
+            "name": os.getenv("DB_NAME", "collagrcms")
+        }
 
     def get_server_config(self) -> Dict[str, Any]:
-        return self.get_config().get("server", {})
+        return {
+            "host": os.getenv("SERVER_HOST", "0.0.0.0"),
+            "port": int(os.getenv("SERVER_PORT", "8000")),
+            "debug": os.getenv("DEBUG", "False").lower() in ("true", "1", "yes", "on")
+        }
 
     def get_logger_config(self) -> Dict[str, Any]:
-        return self.get_config().get("logger", {})
+        return {
+            "log_level": os.getenv("LOG_LEVEL", "INFO"),
+            "rotate": os.getenv("LOG_ROTATE", "False").lower() in ("true", "1", "yes", "on"),
+            "path": os.getenv("LOG_PATH", "./logs"),
+            "max_bytes": int(os.getenv("LOG_MAX_BYTES", "1000000")),
+            "backup_count": int(os.getenv("LOG_BACKUP_COUNT", "3")),
+            "level": os.getenv("LOG_LEVEL", "INFO"),
+            "file_write": os.getenv("LOG_FILE_WRITE", "False").lower() in ("true", "1", "yes", "on"),
+            "format_full": os.getenv("LOG_FORMAT_FULL", "True").lower() in ("true", "1", "yes", "on")
+        }
 
 
 # Create a singleton instance

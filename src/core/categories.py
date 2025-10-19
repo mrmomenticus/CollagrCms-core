@@ -1,9 +1,6 @@
-"""
-Бизнес-логика для работы с категориями
-"""
+"""Бизнес-логика для работы с категориями"""  # noqa: RUF002
 
 import logging
-from typing import List
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -13,7 +10,6 @@ from src.core.images import ImageService
 from src.database.connection import db
 from src.database.repository.categories import CategoryRepository
 from src.database.repository.products import ProductRepository
-
 from src.database.schema.products import ProductDb
 from src.models.models import Category
 from src.utils.file import delete_file
@@ -24,8 +20,7 @@ class CategoryService:
 
     @staticmethod
     async def create_category(name: str, description: str | None = None) -> Category:
-        """
-        Создает новую категорию
+        """Создает новую категорию
 
         Args:
             name: Название категории
@@ -36,6 +31,7 @@ class CategoryService:
 
         Raises:
             CategoryAlreadyExistsError: Если категория с таким именем уже существует
+
         """
         logging.info(f"Создание категории: {name}")
 
@@ -57,24 +53,22 @@ class CategoryService:
             raise
 
     @staticmethod
-    async def get_all_categories(
-        include_inactive: bool = False,
-    ) -> List[Category]:
-        """
-        Получает все категории
+    async def get_all_categories(is_active_categories: bool = False) -> list[Category]:
+        """Получает все категории
 
         Args:
             include_inactive: Включать ли неактивные категории
 
         Returns:
             Список категорий
+
         """
         logging.info(
-            f"Получение всех категорий (включая неактивные: {include_inactive})"
+            f"Получение всех категорий (включая неактивные: {is_active_categories})"
         )
 
         try:
-            if include_inactive:
+            if is_active_categories:
                 categories_db = await CategoryRepository.get_all_including_inactive()
             else:
                 categories_db = await CategoryRepository.get_all()
@@ -88,8 +82,7 @@ class CategoryService:
 
     @staticmethod
     async def get_category_by_id(category_id: int) -> Category:
-        """
-        Получает категорию по ID
+        """Получает категорию по ID
 
         Args:
             category_id: ID категории
@@ -99,6 +92,7 @@ class CategoryService:
 
         Raises:
             CategoryNotFoundError: Если категория не найдена
+
         """
         logging.info(f"Получение категории по ID: {category_id}")
 
@@ -121,8 +115,7 @@ class CategoryService:
 
     @staticmethod
     async def get_category_by_name(name: str, check_active: bool = True) -> Category:
-        """
-        Получает категорию по названию
+        """Получает категорию по названию
 
         Args:
             name: Название категории
@@ -134,6 +127,7 @@ class CategoryService:
         Raises:
             CategoryNotFoundError: Если категория не найдена
             CategoryInactiveError: Если категория неактивна
+
         """
         logging.info(f"Получение категории по имени: {name}")
 
@@ -168,8 +162,7 @@ class CategoryService:
         description: str | None = None,
         is_active: bool | None = None,
     ) -> Category:
-        """
-        Обновляет категорию
+        """Обновляет категорию
 
         Args:
             category_id: ID категории
@@ -183,6 +176,7 @@ class CategoryService:
         Raises:
             CategoryNotFoundError: Если категория не найдена
             CategoryAlreadyExistsError: Если новое имя уже занято
+
         """
         logging.info(f"Обновление категории ID {category_id}")
 
@@ -228,8 +222,7 @@ class CategoryService:
 
     @staticmethod
     async def delete_category(category_id: int, hard_delete: bool = False) -> None:
-        """
-        Удаляет категорию (мягкое или жесткое удаление)
+        """Удаляет категорию (мягкое или жесткое удаление)
 
         Args:
             category_id: ID категории
@@ -237,6 +230,7 @@ class CategoryService:
 
         Raises:
             CategoryNotFoundError: Если категория не найдена
+
         """
         logging.info(f"Удаление категории ID {category_id} (жесткое: {hard_delete})")
 

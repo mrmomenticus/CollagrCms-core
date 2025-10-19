@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -45,27 +44,25 @@ def create_url() -> str:
     )
 
 
-async def async_main():
-    config.load()
+@app.on_event("startup")
+async def startup_event():
     LoggerConfigurator().configure()
     # Инициализация базы данных
     await db.connect(create_url())
     await db.init_database()
-    try:
-        server_config = config.get_server_config()
-        server = uvicorn.Server(
-            config=uvicorn.Config(
-                "src.routers.api:app",
-                host=server_config.get("host", "0.0.0.0"),
-                port=server_config.get("port", 8000),
-                log_level="debug" if server_config.get("debug", False) else "info",
-                reload=True,
-            )
-        )
-        await server.serve()
-    finally:
-        await db.close()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await db.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(async_main())
+    # Запуск через uvicorn
+    server_config = config.get_server_config()
+    uvicorn.run(
+        "src.__main__:app",
+        host=server_config.get("host", "0.0.0.0"),
+        port=server_config.get("port", 8000),
+        log_level="debug" if server_config.get("debug", False) else "info",
+    )

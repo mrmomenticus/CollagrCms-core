@@ -1,4 +1,4 @@
-"""Бизнес-логика для работы с категориями"""  # noqa: RUF002
+"""Бизнес-логика для работы с категориями"""
 
 import logging
 
@@ -157,10 +157,7 @@ class CategoryService:
 
     @staticmethod
     async def update_category(
-        category_id: int,
-        name: str | None = None,
-        description: str | None = None,
-        is_active: bool | None = None,
+        category_id: int, request: CategoryUpdateRequest
     ) -> Category:
         """Обновляет категорию
 

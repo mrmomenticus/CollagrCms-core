@@ -1,12 +1,12 @@
-import logging  # noqa: D100
+from http.client import REQUESTED_RANGE_NOT_SATISFIABLE
+import logging
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 
 from src.core.categories import CategoryService
 from src.models.models import Category
-
-# Заменены кастомные исключения на стандартные - импорт больше не нужен
 
 
 class CategoryCreateRequest(BaseModel):
@@ -41,11 +41,11 @@ log = logging.getLogger(__name__)
 
 
 @router.get("/", response_model=list[Category], response_description="OK")
-async def get_categories() -> list[Category]:
+async def get_categories(is_only_active: bool = True) -> list[Category]:
     """Возвращает все категории (включая неактивные).
 
     Raises:
-        HTTPException: Не удалось найти нужную категорию.
+        HTTPException: 404 - Не удалось найти нужную категорию.
 
     Returns:
         Список всех категорий.
@@ -53,95 +53,77 @@ async def get_categories() -> list[Category]:
     """
     log.info("API запрос: получение всех категорий")
     try:
-        categories = await CategoryService.get_all_categories(is_active_categories=True)
+        categories = await CategoryService.get_all_categories(is_only_active)
         log.info(f"API ответ: возвращено {len(categories)} категорий")
         return categories
     except Exception as e:
         log.error(f"API ошибка при получении категорий: {e}")
-        raise HTTPException(status_code=404, detail="Ошибка получения категорий") from e
-
-
-@router.get("/active/")
-async def get_active_categories():
-    """Получает только активные категории
-
-    Returns:
-        Список только активных категорий
-
-    """
-    logging.info("API запрос: получение только активных категорий")
-    try:
-        categories = await CategoryService.get_all_categories(
-            is_active_categories=False
-        )
-        result = [
-            {"id": cat.id, "name": cat.name, "description": cat.description}
-            for cat in categories
-        ]
-        logging.info(f"API ответ: возвращено {len(result)} активных категорий")
-        return result
-    except Exception as e:
-        logging.error(f"API ошибка при получении активных категорий: {e}")
         raise HTTPException(
-            status_code=500, detail="Ошибка получения активных категорий"
+            status_code=HTTP_404_NOT_FOUND, detail="Ошибка получения категорий"
         ) from e
 
 
 @router.get("/{category_id}", response_model=Category)
-async def get_category(category_id: int):
-    """Получает категорию по ID
+async def get_category(category_id: int) -> Category:
+    """Получает категорию по ID.
 
     Args:
         category_id: ID категории
 
     Returns:
-        Категория
+        Модель бд найденной категории.
+
+    Raises:
+        HTTPException: 404 - Не найдена категория.
 
     """
-    logging.info(f"API запрос: получение категории по ID {category_id}")
+    log.info(f"API запрос: получение категории по ID {category_id}")
     try:
         category = await CategoryService.get_category_by_id(category_id)
-        logging.info(f"API ответ: возвращена категория {category.name}")
+        log.info(f"API ответ: возвращена категория {category.name}")
         return category
     except HTTPException as e:
-        raise e
-    except Exception as e:
-        logging.error(f"API ошибка при получении категории {category_id}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка получения категории") from e
+        log.error(f"API ошибка при получении категории {category_id}: {e}")
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND, detail="Ошибка получения категории"
+        ) from e
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=Category)
-async def create_category(request: CategoryCreateRequest):
-    """Создает новую категорию
+async def create_category(request: CategoryCreateRequest) -> Category:
+    """Создает новую категорию.
 
     Args:
-        request: Данные для создания категории
+        request: Модель для создания данных.
 
     Returns:
-        Созданная категория
+        Созданная категория.
+
+    Raises:
+        HTTPException: 400 - Ошибка создания категории.
 
     """
-    logging.info(f"API запрос: создание категории {request.name}")
+    log.info(f"API запрос: создание категории {request.name}")
     try:
         category = await CategoryService.create_category(
             request.name, request.description
         )
-        logging.info(
-            f"API ответ: категория создана {category.name} (ID: {category.id})"
-        )
+        log.info(f"API ответ: категория создана {category.name} (ID: {category.id})")
         return category
     except HTTPException as e:
         raise e
     except Exception as e:
-        logging.error(f"API ошибка при создании категории {request.name}: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка создания категории") from e
+        log.error(f"API ошибка при создании категории {request.name}: {e}")
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST, detail="Ошибка создания категории"
+        ) from e
 
 
 @router.put("/{category_id}", response_model=Category)
 async def update_category(
     category_id: int,
     request: CategoryUpdateRequest,
-):
+) -> Category:
     """Обновляет категорию
 
     Args:
@@ -152,19 +134,15 @@ async def update_category(
         Обновленная категория
 
     """
-    logging.info(f"API запрос: обновление категории ID {category_id}")
+    log.info(f"API запрос: обновление категории ID {category_id}")
     try:
-        category = await CategoryService.update_category(
-            category_id, request.name, request.description, request.is_active
-        )
-        logging.info(f"API ответ: категория обновлена {category.name}")
+        category = await CategoryService.update_category(category_id, request)
+        log.info(f"API ответ: категория обновлена {category.name}")
         return category
     except HTTPException as e:
-        raise e
-    except Exception as e:
-        logging.error(f"API ошибка при обновлении категории {category_id}: {e}")
+        log.error(f"API ошибка при обновлении категории {category_id}: {e}")
         raise HTTPException(
-            status_code=500, detail="Ошибка обновления категории"
+            status_code=HTTP_400_BAD_REQUEST, detail="Ошибка обновления категории."
         ) from e
 
 

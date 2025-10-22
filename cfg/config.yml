@@ -1,12 +1,12 @@
 database:
   # Пользователь и пароль вынесены в env DB_USER и DB_PASSWORD
-  type:
-  host: 82.202.169.101
-  port: 5432
-  name: test
-  user: test
-  password: test1234_
-  echo: false # включить логирование базы данных
+  type: ${DB_TYPE:-}
+  host: ${DB_HOST:-82.202.169.101}
+  port: ${DB_PORT:-5432}
+  name: ${DB_NAME:-test}
+  user: ${DB_USER:-test}
+  password: ${DB_PASSWORD:-test1234_}
+  echo: ${DB_ECHO:-false} # включить логирование базы данных
 
 logger:
   level: "DEBUG" # уровень логирования

@@ -12,10 +12,13 @@ from src.core.collages import CollageService
 
 # Создаем роутер для коллажей
 router = APIRouter(prefix="/collage", tags=["collages"])
+log = logging.getLogger(__name__)
 
 
 @router.get("/")
-async def create_collage(list_id: List[int] = Query(..., min_length=1, max_length=12), is_price: bool = True):  # noqa: B008
+async def create_collage(
+    list_id: List[int] = Query(..., min_length=1, max_length=12), is_price: bool = True
+):  # noqa: B008
     """
     Создает коллаж из выбранных изображений
 
@@ -76,7 +79,11 @@ async def get_all_product_for_collage():
 
 
 @router.get("/select-by-categories/")
-async def get_products_by_categories(category_names: List[str] = Query(..., description="Список названий категорий для фильтрации")):
+async def get_products_by_categories(
+    category_names: List[str] = Query(
+        ..., description="Список названий категорий для фильтрации"
+    ),
+):
     """
     Возвращает товары по заданным категориям для создания коллажей
 
@@ -90,7 +97,9 @@ async def get_products_by_categories(category_names: List[str] = Query(..., desc
     try:
         result = await CollageService.get_products_by_categories(category_names)
 
-        logging.info(f"API ответ: информация о {result.get('total_images', 0)} товарах в указанных категориях")
+        logging.info(
+            f"API ответ: информация о {result.get('total_images', 0)} товарах в указанных категориях"
+        )
         return result
 
     except Exception as e:
@@ -105,7 +114,9 @@ async def create_batch_collage(
     batch_size: int = Query(default=12, ge=1, le=12),
     start_index: int = Query(default=0, ge=0),
     is_price: bool = True,
-    category_names: List[str] = Query(None, description="Список названий категорий для фильтрации")
+    category_names: List[str] = Query(
+        None, description="Список названий категорий для фильтрации"
+    ),
 ):
     """
     Создает коллаж из текущего пакета товаров (по умолчанию 12 штук)
@@ -148,7 +159,9 @@ async def create_batch_collage(
                 "X-Collage-Has-More": str(batch_info["has_more"]),
                 "X-Collage-Next-Start-Index": str(batch_info["next_start_index"]),
                 # Добавляем информацию о категориях в заголовки, если они указаны
-                "X-Collage-Categories": str(category_names) if category_names else "all",
+                "X-Collage-Categories": str(category_names)
+                if category_names
+                else "all",
                 # Убираем кириллицу из заголовков
                 "X-Collage-Message": f"Batch {batch_info['batch_number']} of {batch_info['total_batches']} (images {batch_info['start_index'] + 1}-{batch_info['end_index']} of {batch_info['total_images']})",
             },
@@ -170,7 +183,9 @@ async def create_batch_collage(
 @router.get("/batch/all/")
 async def create_all_collage_info(
     batch_size: int = Query(default=12, ge=1, le=12),
-    category_names: List[str] = Query(None, description="Список названий категорий для фильтрации")
+    category_names: List[str] = Query(
+        None, description="Список названий категорий для фильтрации"
+    ),
 ):
     """
     Создает все коллажи из всех товаров, обрабатывая их пакетами
@@ -184,7 +199,9 @@ async def create_all_collage_info(
         JSON с информацией о всех созданных коллажах
     """
     if category_names:
-        logging.info(f"API запрос: создание всех коллажей по категориям {category_names} (размер пакета: {batch_size})")
+        logging.info(
+            f"API запрос: создание всех коллажей по категориям {category_names} (размер пакета: {batch_size})"
+        )
         try:
             result = await CollageService.get_products_by_categories(category_names)
         except Exception as e:
@@ -193,7 +210,9 @@ async def create_all_collage_info(
                 status_code=500, detail="Ошибка получения продуктов по категориям"
             ) from e
     else:
-        logging.info(f"API запрос: создание всех коллажей (размер пакета: {batch_size})")
+        logging.info(
+            f"API запрос: создание всех коллажей (размер пакета: {batch_size})"
+        )
         try:
             result = await CollageService.get_all_products_info()
         except Exception as e:
@@ -234,7 +253,9 @@ async def create_all_collage_info(
 async def create_and_dowload_all_collages(
     batch_size: int = Query(default=12, ge=1, le=12),
     is_price: bool = True,
-    category_names: List[str] = Query(None, description="Список названий категорий для фильтрации")
+    category_names: List[str] = Query(
+        None, description="Список названий категорий для фильтрации"
+    ),
 ):
     """
     Создает все коллажи из всех товаров и отправляет их пользователю в виде ZIP-архива
@@ -270,7 +291,9 @@ async def create_and_dowload_all_collages(
                 "X-Collage-Total-Batches": str(creation_info["total_batches"]),
                 "X-Collage-Total-Images": str(creation_info["total_images"]),
                 "X-Collage-Batch-Size": str(creation_info["batch_size"]),
-                "X-Collage-Categories": str(category_names) if category_names else "all",
+                "X-Collage-Categories": str(category_names)
+                if category_names
+                else "all",
                 # Убираем кириллицу из заголовков, чтобы избежать проблем с кодировкой
                 "X-Collage-Message": f"Created {creation_info['total_batches']} collages from {creation_info['total_images']} images in categories {creation_info['categories']}",
             },
@@ -293,7 +316,9 @@ async def create_and_dowload_all_collages(
 
 @router.get("/batch/status/")
 async def get_batch_processing_status(
-    category_names: List[str] = Query(None, description="Список названий категорий для фильтрации")
+    category_names: List[str] = Query(
+        None, description="Список названий категорий для фильтрации"
+    ),
 ):
     """
     Возвращает статус пакетной обработки коллажей
@@ -305,7 +330,9 @@ async def get_batch_processing_status(
         JSON с информацией о статусе
     """
     if category_names:
-        logging.info(f"API запрос: получение статуса пакетной обработки для категорий {category_names}")
+        logging.info(
+            f"API запрос: получение статуса пакетной обработки для категорий {category_names}"
+        )
         try:
             result = await CollageService.get_batch_processing_status(category_names)
         except Exception as e:
@@ -323,9 +350,7 @@ async def get_batch_processing_status(
                 status_code=500, detail="Ошибка получения общего статуса"
             ) from e
 
-    logging.info(
-        f"API ответ: статус получен ({result.get('total_images', 0)} товаров)"
-    )
+    logging.info(f"API ответ: статус получен ({result.get('total_images', 0)} товаров)")
     return result
 
 
@@ -333,7 +358,9 @@ async def get_batch_processing_status(
 async def get_batch_info(
     start_index: int = Query(default=0, ge=0),
     batch_size: int = Query(default=12, ge=1, le=12),
-    category_names: List[str] = Query(None, description="Список названий категорий для фильтрации")
+    category_names: List[str] = Query(
+        None, description="Список названий категорий для фильтрации"
+    ),
 ):
     """
     Возвращает информацию о текущем пакете товаров без создания коллажа
@@ -356,7 +383,9 @@ async def get_batch_info(
             f"API запрос: получение информации о пакете (индекс: {start_index}, размер: {batch_size})"
         )
     try:
-        result = await CollageService.get_batch_info(start_index, batch_size, category_names)
+        result = await CollageService.get_batch_info(
+            start_index, batch_size, category_names
+        )
 
         logging.info(
             f"API ответ: информация о пакете {result['current_batch']}/{result['total_batches']}"

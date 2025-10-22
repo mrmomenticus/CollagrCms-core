@@ -1,9 +1,8 @@
-from http.client import REQUESTED_RANGE_NOT_SATISFIABLE
 import logging
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
+from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
 
 from src.core.categories import CategoryService
 from src.models.models import Category
@@ -124,7 +123,7 @@ async def update_category(
     category_id: int,
     request: CategoryUpdateRequest,
 ) -> Category:
-    """Обновляет категорию
+    """Обновляет категорию.
 
     Args:
         category_id: ID категории
@@ -132,6 +131,9 @@ async def update_category(
 
     Returns:
         Обновленная категория
+
+    Raises:
+        HTTPException: Не найденная категория
 
     """
     log.info(f"API запрос: обновление категории ID {category_id}")
@@ -147,8 +149,8 @@ async def update_category(
 
 
 @router.delete("/{category_id}")
-async def delete_category(category_id: int):
-    """Удаляет категорию (мягкое удаление - деактивирует)
+async def delete_category(category_id: int) -> dict[str, str]:
+    """Удаляет категорию (мягкое удаление - деактивирует).
 
     Args:
         category_id: ID категории
@@ -156,22 +158,23 @@ async def delete_category(category_id: int):
     Returns:
         Сообщение об успешном удалении
 
+    Raises:
+        HTTPException: 500 - ошибка при удаление категории.
+
     """
-    logging.info(f"API запрос: мягкое удаление категории ID {category_id}")
+    log.info(f"API запрос: мягкое удаление категории ID {category_id}")
     try:
         await CategoryService.delete_category(category_id, hard_delete=False)
-        logging.info("API ответ: категория успешно деактивирована")
+        log.info("API ответ: категория успешно деактивирована")
         return {"message": "Категория успешно удалена"}
     except HTTPException as e:
-        raise e
-    except Exception as e:
-        logging.error(f"API ошибка при удалении категории {category_id}: {e}")
+        log.error(f"API ошибка при удалении категории {category_id}: {e}")
         raise HTTPException(status_code=500, detail="Ошибка удаления категории") from e
 
 
 @router.delete("/{category_id}/hard")
-async def hard_delete_category(category_id: int):
-    """Полностью удаляет категорию из базы данных
+async def hard_delete_category(category_id: int) -> dict[str, str]:
+    """Полностью удаляет категорию из базы данных.
 
     Args:
         category_id: ID категории
@@ -179,16 +182,17 @@ async def hard_delete_category(category_id: int):
     Returns:
         Сообщение об успешном удалении
 
+    Raises:
+        HTTPException: Если не получилось удалить категорию.
+
     """
-    logging.info(f"API запрос: полное удаление категории ID {category_id}")
+    log.info(f"API запрос: полное удаление категории ID {category_id}")
     try:
         await CategoryService.delete_category(category_id, hard_delete=True)
-        logging.info("API ответ: категория полностью удалена")
+        log.info("API ответ: категория полностью удалена")
         return {"message": "Категория полностью удалена"}
     except HTTPException as e:
-        raise e
-    except Exception as e:
-        logging.error(f"API ошибка при полном удалении категории {category_id}: {e}")
+        log.error(f"API ошибка при полном удалении категории {category_id}: {e}")
         raise HTTPException(
             status_code=500, detail="Ошибка полного удаления категории"
         ) from e

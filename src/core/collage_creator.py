@@ -19,8 +19,8 @@ class CollageCreator:
 
     def _calculate_grid_dimensions(self, image_count: int) -> tuple[int, int]:
         """Рассчитывает оптимальные размеры сетки для заданного количества изображений (до 16).
-        Возвращает (колонки, строки)
-        """
+        Возвращает (колонки, строки).
+        """  # noqa: D205, DOC201
         if image_count <= 0:
             raise ValueError("Количество изображений должно быть больше 0")
         if image_count == 1:

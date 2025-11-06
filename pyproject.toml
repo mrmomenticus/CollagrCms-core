@@ -13,6 +13,7 @@ dependencies = [
     "pytest>=8.3.5",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.20",
+    "pyyml>=0.0.2",
     "sqlalchemy>=2.0.41",
     "uvicorn>=0.34.3",
 ]

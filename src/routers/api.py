@@ -1,13 +1,13 @@
+import pathlib
+
+import yaml
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import yaml
-
 
 from src.routers.categories import router as categories_router
-from src.routers.products import router as products_router
-from src.routers.images import router as images_router
 from src.routers.collages import router as collages_router
-
+from src.routers.images import router as images_router
+from src.routers.products import router as products_router
 
 # Создаем основное приложение FastAPI
 
@@ -36,5 +36,5 @@ app.include_router(images_router)
 app.include_router(collages_router)
 
 
-with open("docs/openapi.yaml", "w") as f:
+with pathlib.Path("docs/openapi.yaml").open("w") as f:
     yaml.dump(app.openapi(), f, indent=3)

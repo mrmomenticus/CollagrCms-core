@@ -1,41 +1,36 @@
-"""
-API роутеры для работы с коллажами
-"""
-
 import logging
-from typing import List
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from src.core.collages import CollageService
-# Кастомные исключения удалены — используем стандартные HTTPException
 
-# Создаем роутер для коллажей
 router = APIRouter(prefix="/collage", tags=["collages"])
 log = logging.getLogger(__name__)
 
 
 @router.get("/")
 async def create_collage(
-    list_id: List[int] = Query(..., min_length=1, max_length=12), is_price: bool = True
-):  # noqa: B008
-    """
-    Создает коллаж из выбранных изображений
+    list_id: list[int] = Query(..., min_length=1, max_length=16),
+    is_price: bool = True,  # noqa: B008
+) -> FileResponse:
+    """Создает коллаж из выбранных изображений.
 
     Args:
-        list_id: Список ID изображений (от 1 до 12)
+        list_id: Список ID изображений (от 1 до 16)
         is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
     Returns:
         Файл коллажа в формате JPEG
-    """
-    logging.info(f"API запрос: создание коллажа из {len(list_id)} изображений")
 
-    if len(list_id) < 1 or len(list_id) > 12:
+    """
+    log.info(f"API запрос: создание коллажа из {len(list_id)} изображений")
+
+    if len(list_id) < 1 or len(list_id) > 16:
         error_msg = (
-            f"Количество изображений должно быть от 1 до 12, получено: {len(list_id)}"
+            f"Количество изображений должно быть от 1 до 16, получено: {len(list_id)}"
         )
-        logging.warning(f"API ошибка: {error_msg}")
+        log.warning(f"API ошибка: {error_msg}")
         raise HTTPException(status_code=422, detail=error_msg)
 
     try:
@@ -43,36 +38,36 @@ async def create_collage(
             list_id, "collage.jpg", is_price
         )
 
-        logging.info("API ответ: коллаж создан и возвращен")
+        log.info("API ответ: коллаж создан и возвращен")
         return FileResponse(
             collage_path, media_type="image/jpeg", filename="collage.jpg"
         )
 
     except HTTPException as e:
-        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
         raise e
     except Exception as e:
-        logging.error(f"API ошибка при создании коллажа: {e}")
+        log.error(f"API ошибка при создании коллажа: {e}")
         raise HTTPException(status_code=500, detail="Ошибка создания коллажа") from e
 
 
 @router.get("/select-all/")
-async def get_all_product_for_collage():
-    """
-    Возвращает все доступные товары для создания коллажей
+async def get_all_product_for_collage() -> dict:
+    """Возвращает все доступные товары для создания коллажей.
 
     Returns:
         JSON с информацией о всех товарах и возможностях создания коллажей
+
     """
-    logging.info("API запрос: получение всех продуктов для коллажей")
+    log.info("API запрос: получение всех продуктов для коллажей")
     try:
         result = await CollageService.get_all_products_info()
 
-        logging.info(f"API ответ: информация о {result.get('total_images', 0)} товарах")
+        log.info(f"API ответ: {result.get('total_images', 0)}")
         return result
 
     except Exception as e:
-        logging.error(f"API ошибка при получении всех продуктов: {e}")
+        log.error(f"API ошибка при получении всех продуктов: {e}")
         raise HTTPException(
             status_code=500, detail="Ошибка получения всех продуктов"
         ) from e
@@ -80,18 +75,18 @@ async def get_all_product_for_collage():
 
 @router.get("/select-by-categories/")
 async def get_products_by_categories(
-    category_names: List[str] = Query(
+    category_names: list[str] = Query(
         ..., description="Список названий категорий для фильтрации"
     ),
 ):
-    """
-    Возвращает товары по заданным категориям для создания коллажей
+    """Возвращает товары по заданным категориям для создания коллажей.
 
     Args:
         category_names: Список названий категорий для фильтрации
 
     Returns:
         JSON с информацией о товарах и возможностях создания коллажей
+
     """
     logging.info(f"API запрос: получение продуктов для категорий {category_names}")
     try:
@@ -114,12 +109,11 @@ async def create_batch_collage(
     batch_size: int = Query(default=12, ge=1, le=12),
     start_index: int = Query(default=0, ge=0),
     is_price: bool = True,
-    category_names: List[str] = Query(
+    category_names: list[str] = Query(
         None, description="Список названий категорий для фильтрации"
     ),
 ):
-    """
-    Создает коллаж из текущего пакета товаров (по умолчанию 12 штук)
+    """Создает коллаж из текущего пакета товаров (по умолчанию 12 штук)
     Используется для кнопки "Дальше" - создает следующий коллаж и сразу отправляет его пользователю
 
     Args:
@@ -130,6 +124,7 @@ async def create_batch_collage(
 
     Returns:
         Файл коллажа для скачивания
+
     """
     if category_names:
         logging.info(
@@ -183,12 +178,11 @@ async def create_batch_collage(
 @router.get("/batch/all/")
 async def create_all_collage_info(
     batch_size: int = Query(default=12, ge=1, le=12),
-    category_names: List[str] = Query(
+    category_names: list[str] = Query(
         None, description="Список названий категорий для фильтрации"
     ),
 ):
-    """
-    Создает все коллажи из всех товаров, обрабатывая их пакетами
+    """Создает все коллажи из всех товаров, обрабатывая их пакетами
     Используется для кнопки "Выбрать все" - создает все коллажи сразу
 
     Args:
@@ -197,6 +191,7 @@ async def create_all_collage_info(
 
     Returns:
         JSON с информацией о всех созданных коллажах
+
     """
     if category_names:
         logging.info(
@@ -253,12 +248,11 @@ async def create_all_collage_info(
 async def create_and_dowload_all_collages(
     batch_size: int = Query(default=12, ge=1, le=12),
     is_price: bool = True,
-    category_names: List[str] = Query(
+    category_names: list[str] = Query(
         None, description="Список названий категорий для фильтрации"
     ),
 ):
-    """
-    Создает все коллажи из всех товаров и отправляет их пользователю в виде ZIP-архива
+    """Создает все коллажи из всех товаров и отправляет их пользователю в виде ZIP-архива
     Используется для кнопки "Выбрать все" - создает все коллажи и сразу отправляет для скачивания
 
     Args:
@@ -268,6 +262,7 @@ async def create_and_dowload_all_collages(
 
     Returns:
         ZIP-архив со всеми созданными коллажами
+
     """
     if category_names:
         logging.info(
@@ -316,18 +311,18 @@ async def create_and_dowload_all_collages(
 
 @router.get("/batch/status/")
 async def get_batch_processing_status(
-    category_names: List[str] = Query(
+    category_names: list[str] = Query(
         None, description="Список названий категорий для фильтрации"
     ),
 ):
-    """
-    Возвращает статус пакетной обработки коллажей
+    """Возвращает статус пакетной обработки коллажей
 
     Args:
         category_names: Список названий категорий для фильтрации
 
     Returns:
         JSON с информацией о статусе
+
     """
     if category_names:
         logging.info(
@@ -358,12 +353,11 @@ async def get_batch_processing_status(
 async def get_batch_info(
     start_index: int = Query(default=0, ge=0),
     batch_size: int = Query(default=12, ge=1, le=12),
-    category_names: List[str] = Query(
+    category_names: list[str] = Query(
         None, description="Список названий категорий для фильтрации"
     ),
 ):
-    """
-    Возвращает информацию о текущем пакете товаров без создания коллажа
+    """Возвращает информацию о текущем пакете товаров без создания коллажа
     Используется для получения информации перед созданием коллажа
 
     Args:
@@ -373,6 +367,7 @@ async def get_batch_info(
 
     Returns:
         JSON с информацией о текущем пакете
+
     """
     if category_names:
         logging.info(
@@ -404,11 +399,11 @@ async def get_batch_info(
 
 @router.post("/cleanup/")
 async def cleanup_temp_files():
-    """
-    Очищает временные файлы коллажей
+    """Очищает временные файлы коллажей
 
     Returns:
         JSON с результатом очистки
+
     """
     logging.info("API запрос: очистка временных файлов")
     try:

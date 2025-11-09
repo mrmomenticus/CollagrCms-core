@@ -10,6 +10,6 @@ class ImagesDb(BaseModel):
     path: Mapped[str] = mapped_column(nullable=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), unique=True)
 
-    product: Mapped["ProductDb"] = relationship( # type: ignore  # noqa: F821
-        "ProductDb", back_populates="image", cascade="delete"
+    product: Mapped["ProductDb"] = relationship(  # type: ignore  # noqa: F821
+        "ProductDb", back_populates="image", cascade="delete",
     )

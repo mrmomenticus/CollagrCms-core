@@ -1,15 +1,14 @@
-import asyncio
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
+from src.database.connection import db
 from src.routers.categories import router as categories_router
-from src.routers.products import router as products_router
-from src.routers.images import router as images_router
 from src.routers.collages import router as collages_router
+from src.routers.images import router as images_router
+from src.routers.products import router as products_router
 from src.utils.config import config
 from src.utils.logs import LoggerConfigurator
-from src.database.connection import db
 
 # Создаем основное приложение FastAPI
 app = FastAPI(

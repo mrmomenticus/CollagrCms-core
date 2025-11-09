@@ -1,8 +1,9 @@
-import logging
+import textwrap
+
 from PIL import Image, ImageDraw, ImageFont
+
 from src.core.font import Font
 from src.models.models import ImageWithProduct
-import textwrap
 
 
 class Overlay:
@@ -13,7 +14,7 @@ class Overlay:
         self._overlay_alpha = 128
         self._text_margin_x = 30
         self._price_color = (30, 30, 30)  # Темнее
-        self._desc_color = (20, 20, 20)   # Темнее
+        self._desc_color = (20, 20, 20)  # Темнее
         self._price_font_min = 20  # минимальный размер шрифта цены
         self._desc_font_min = 10  # минимальный размер шрифта описания
         self._price_font_overlay_ratio = 0.3  # цена: половина overlay
@@ -79,17 +80,17 @@ class Overlay:
     def _get_fonts(self, overlay_height):
         font_path = self._font.get_font()
         price_font_size = max(
-            self._price_font_min, int(overlay_height * self._price_font_overlay_ratio)
+            self._price_font_min, int(overlay_height * self._price_font_overlay_ratio),
         )
         desc_font_size = max(
-            self._desc_font_min, int(overlay_height * self._desc_font_overlay_ratio)
+            self._desc_font_min, int(overlay_height * self._desc_font_overlay_ratio),
         )
         price_font = ImageFont.truetype(font_path, price_font_size)
         desc_font = ImageFont.truetype(font_path, desc_font_size)
         return price_font, desc_font, price_font_size
 
     def add_text_overlay(
-        self, img: Image.Image, img_model: ImageWithProduct, img_box=None, is_price=True
+        self, img: Image.Image, img_model: ImageWithProduct, img_box=None, is_price=True,
     ) -> Image.Image:
         img_with_overlay = img.copy()
         overlay_top, overlay_bottom, overlay_height, width, height = (
@@ -105,7 +106,7 @@ class Overlay:
             fill=(255, 255, 255, overlay_alpha),
         )
         img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert(
-            "RGB"
+            "RGB",
         )
         draw = ImageDraw.Draw(img_with_overlay)
         # Fonts
@@ -145,7 +146,7 @@ class Overlay:
         return img_with_overlay
 
     def _fit_text_to_overlay(
-        self, draw, text, font, max_width, max_height, line_spacing=7
+        self, draw, text, font, max_width, max_height, line_spacing=7,
     ):
         text = text[: self._max_description_length]
         lines = textwrap.wrap(

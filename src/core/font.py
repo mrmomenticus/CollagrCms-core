@@ -1,16 +1,14 @@
 import logging
-import os
 from pathlib import Path
-from typing import List
+
 from PIL import ImageFont
 
 
 class Font:
-    """
-    Класс для поиска и хранения пути к шрифту с поддержкой кириллицы.
+    """Класс для поиска и хранения пути к шрифту с поддержкой кириллицы.
     """
 
-    CYRILLIC_FONT_PATTERNS: List[str] = [
+    CYRILLIC_FONT_PATTERNS: list[str] = [
         "Roboto",
         "Liberation",
         "DejaVu",
@@ -24,8 +22,8 @@ class Font:
         "Arial",
         "Helvetica",
     ]
-    FONT_EXTENSIONS: List[str] = ["ttf", "otf", "TTF", "OTF"]
-    FONT_DIRS: List[Path] = [
+    FONT_EXTENSIONS: list[str] = ["ttf", "otf", "TTF", "OTF"]
+    FONT_DIRS: list[Path] = [
         Path("/usr/share/fonts/truetype/"),
         Path("/usr/share/fonts/TTF/"),
         Path("/usr/share/fonts/opentype/"),
@@ -37,14 +35,12 @@ class Font:
         self._font: str = self._find_font()
 
     def get_font(self) -> str:
-        """
-        Возвращает путь к найденному шрифту.
+        """Возвращает путь к найденному шрифту.
         """
         return self._font
 
     def _find_font(self) -> str:
-        """
-        Ищет первый подходящий шрифт с поддержкой кириллицы.
+        """Ищет первый подходящий шрифт с поддержкой кириллицы.
         Сначала ищет варианты с 'Regular' в имени файла.
         """
         for font_dir in self.FONT_DIRS:
@@ -63,17 +59,17 @@ class Font:
                     if regular_fonts:
                         font_path = regular_fonts[0]
                         logging.info(
-                            f"Найден шрифт с поддержкой кириллицы: {font_path}"
+                            "Найден шрифт с поддержкой кириллицы: %s", font_path,
                         )
                         return font_path
-                    elif fonts:
+                    if fonts:
                         font_path = str(fonts[0])
                         logging.info(
-                            f"Найден шрифт с поддержкой кириллицы: {font_path}"
+                            "Найден шрифт с поддержкой кириллицы: %s", font_path,
                         )
                         return font_path
         logging.critical(
-            "Не найден шрифт с поддержкой кириллицы в /usr/share/fonts/, используется встроенный шрифт"
+            "Не найден шрифт с поддержкой кириллицы в /usr/share/fonts/, используется встроенный шрифт",
         )
         raise ValueError("Нужный шрифт не найден")
 
@@ -82,9 +78,9 @@ class Font:
             try:
                 if bold and self._font.endswith("-Regular.ttf"):
                     bold_font = self._font.replace("-Regular.ttf", "-Bold.ttf")
-                    if os.path.exists(bold_font):
+                    if Path(bold_font).exists():
                         return ImageFont.truetype(bold_font, size)
                 return ImageFont.truetype(self._font, size)
             except Exception as e:
-                logging.warning(f"Ошибка загрузки шрифта: {e}")
+                logging.warning("Ошибка загрузки шрифта: %s", e)
         raise ValueError("Не получилось загрузить шрифт")

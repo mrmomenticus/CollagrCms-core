@@ -82,7 +82,7 @@ class CollageCreator:
         image_count = len(image_models)
         if image_count < 1 or image_count > 16:
             raise ValueError(
-                f"Количество изображений должно быть от 1 до 12, получено: {image_count}"
+                f"Количество изображений должно быть от 1 до 12, получено: {image_count}",
             )
         # Рассчитываем размеры сетки
         grid_cols, grid_rows = self._calculate_grid_dimensions(image_count)
@@ -93,7 +93,7 @@ class CollageCreator:
         )
         # Создаем изображение
         collage = Image.new(
-            "RGB", (canvas_width, canvas_height), self._background_color
+            "RGB", (canvas_width, canvas_height), self._background_color,
         )
         draw = ImageDraw.Draw(collage)
         # Рисуем рамку
@@ -111,7 +111,7 @@ class CollageCreator:
                 cell_img, img_box = self._resize_image_to_cell(img)
                 # Всегда добавляем оверлей, но с ценой или без в зависимости от is_price
                 cell_img = overlay.add_text_overlay(
-                    cell_img, img_model, img_box, is_price
+                    cell_img, img_model, img_box, is_price,
                 )
                 row = idx // grid_cols
                 col = idx % grid_cols
@@ -119,10 +119,10 @@ class CollageCreator:
                 y = row * (self._cell_size + self._cell_margin)
                 collage.paste(cell_img, (x, y))
             except Exception as e:
-                logging.error(f"Ошибка при обработке изображения {img_model.path}: {e}")
+                logging.exception(f"Ошибка при обработке изображения {img_model.path}: {e}")
                 raise
         collage.save(output_path, "JPEG", quality=95)
         logging.info(
-            f"Коллаж сохранён в {output_path} (сетка: {grid_cols}x{grid_rows}, изображений: {image_count})"
+            "Коллаж сохранён в %s (сетка: %sx%s, изображений: %s)", output_path, grid_cols, grid_rows, image_count,
         )
         return output_path

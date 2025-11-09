@@ -1,5 +1,3 @@
-"""Бизнес-логика для работы с категориями"""
-
 import logging
 
 from fastapi import HTTPException, status
@@ -13,6 +11,7 @@ from src.database.repository.products import ProductRepository
 from src.database.schema.products import ProductDb
 from src.models.models import Category
 from src.utils.file import delete_file
+from src.utils.exceptions import NotFoundError
 
 
 class CategoryService:
@@ -218,7 +217,7 @@ class CategoryService:
             raise
 
     @staticmethod
-    async def delete_category(category_id: int, hard_delete: bool = False) -> None:
+    async def delete_category(category_id: int, hard_delete: bool = False) -> str:
         """Удаляет категорию (мягкое или жесткое удаление)
 
         Args:
@@ -226,8 +225,9 @@ class CategoryService:
             hard_delete: Полностью удалить из БД или только деактивировать
 
         Raises:
-            CategoryNotFoundError: Если категория не найдена
-
+            NotFound: Если категория не найдена
+        Return:
+            Название удаленной категории
         """
         logging.info(f"Удаление категории ID {category_id} (жесткое: {hard_delete})")
 
@@ -236,10 +236,7 @@ class CategoryService:
             existing_category = await CategoryRepository.get_by_id(category_id)
             if not existing_category:
                 logging.warning(f"Категория с ID {category_id} не найдена")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Категория с ID {category_id} не найдена",
-                )
+                raise NotFoundError(f"Не найдена категория {category_id}")
 
             # Находим продукты, у которых только эта категория
             products_to_delete = []
@@ -256,7 +253,6 @@ class CategoryService:
                     ):
                         products_to_delete.append(product)
 
-            # Удаляем продукты и их изображения
             for product in products_to_delete:
                 logging.info(
                     f"Удаление продукта {product.name} (ID: {product.id}) из-за удаления единственной категории"
@@ -277,9 +273,4 @@ class CategoryService:
             else:
                 await CategoryRepository.delete(category_id)
                 logging.info(f"Категория {existing_category.name} деактивирована")
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logging.error(f"Ошибка при удалении категории {category_id}: {e}")
-            raise
+            return existing_category.name

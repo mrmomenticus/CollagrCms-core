@@ -1,9 +1,9 @@
+from sqlalchemy import Column, ForeignKey, Integer, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Table, Column, Integer
 
 from src.database.schema.images import ImagesDb
-from .base import BaseModel
 
+from .base import BaseModel
 
 # Ассоциативная таблица для many-to-many связи между продуктами и категориями
 product_categories = Table(
@@ -22,10 +22,10 @@ class ProductDb(BaseModel):
     price: Mapped[int] = mapped_column(nullable=False)
 
     image: Mapped["ImagesDb"] = relationship(
-        "ImagesDb", back_populates="product", uselist=False, cascade="delete"
-    )  # noqa: F821
+        "ImagesDb", back_populates="product", uselist=False, cascade="delete",
+    )
 
     # Связь с категориями (many-to-many)
-    categories: Mapped[list["CategoryDb"]] = relationship( # type: ignore  # noqa: F821
-        "CategoryDb", secondary=product_categories, back_populates="products"
+    categories: Mapped[list["CategoryDb"]] = relationship(  # type: ignore  # noqa: F821
+        "CategoryDb", secondary=product_categories, back_populates="products",
     )

@@ -12,5 +12,5 @@ class CategoryDb(BaseModel):
 
     # Связь с продуктами (many-to-many)
     products: Mapped[list["ProductDb"]] = relationship(  # noqa: F821 # type: ignore
-        "ProductDb", secondary="product_categories", back_populates="categories"
+        "ProductDb", secondary="product_categories", back_populates="categories",
     )

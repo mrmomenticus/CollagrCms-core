@@ -1,10 +1,11 @@
 import logging
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.pool import AsyncAdaptedQueuePool
-from typing import Optional, AsyncGenerator, Callable, TypeVar, Awaitable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from functools import wraps
+from typing import Optional, TypeVar
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import AsyncAdaptedQueuePool
 
 from src.database.schema.base import Base
 
@@ -33,7 +34,7 @@ class DatabaseConnection:
                 pool_pre_ping=True,
             )
             self._async_session = async_sessionmaker(
-                self._engine, class_=AsyncSession, expire_on_commit=False
+                self._engine, class_=AsyncSession, expire_on_commit=False,
             )
 
     async def close(self):
@@ -43,7 +44,7 @@ class DatabaseConnection:
             self._async_session = None
 
     @asynccontextmanager
-    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+    async def get_session(self) -> AsyncGenerator[AsyncSession]:
         if not self._async_session:
             raise RuntimeError("База данных не подключена")
 
@@ -56,7 +57,7 @@ class DatabaseConnection:
                 raise e
 
     def with_session(
-        self, func: Callable[..., Awaitable[T]]
+        self, func: Callable[..., Awaitable[T]],
     ) -> Callable[..., Awaitable[T]]:
         @wraps(func)
         async def wrapper(*args, **kwargs):

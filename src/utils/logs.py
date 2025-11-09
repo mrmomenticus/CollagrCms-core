@@ -1,6 +1,8 @@
 import logging
 import os
+import pathlib
 from logging.handlers import RotatingFileHandler
+
 from src.utils.config import config
 
 
@@ -9,8 +11,8 @@ class LoggerConfigurator:
         self.root_logger = logging.getLogger()
         self.root_logger.setLevel(
             self._get_level_from_string(
-                config.get_logger_config().get("log_level", "INFO")
-            )
+                config.get_logger_config().get("log_level", "INFO"),
+            ),
         )
         self._rotate: bool = config.get_logger_config().get("rotate", False)
         self._path: str = config.get_logger_config().get("path", "/logs")
@@ -43,8 +45,8 @@ class LoggerConfigurator:
     def _setup_handlers(self):
         handlers = []
         if self._rotate:
-            if not os.path.exists(self._path):
-                os.makedirs(self._path)
+            if not pathlib.Path(self._path).exists():
+                pathlib.Path(self._path).mkdir(parents=True)
             log_handler = RotatingFileHandler(
                 f"{self._path}/all_log.log",
                 maxBytes=self._max_bytes,
@@ -52,7 +54,7 @@ class LoggerConfigurator:
             )
         else:
             log_handler = logging.FileHandler(
-                f"{self._path}/all_log_{os.getpid()}.log", mode="w"
+                f"{self._path}/all_log_{os.getpid()}.log", mode="w",
             )
 
         log_handler.setLevel(self._get_level_from_string(self._level))

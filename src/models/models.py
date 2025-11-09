@@ -43,7 +43,7 @@ class CategoryCreateRequest(BaseModel):
         description="Название категории (обязательное, от 1 до 255 символов)",
     )
     description: str | None = Field(
-        None, max_length=1000, description="Описание категории (до 1000 символов)"
+        None, max_length=1000, description="Описание категории (до 1000 символов)",
     )
     is_active: bool = Field(True, description="Статус активности категории")
 
@@ -56,6 +56,6 @@ class CategoryUpdateRequest(BaseModel):
         description="Название категории (от 1 до 255 символов)",
     )
     description: str | None = Field(
-        None, max_length=1000, description="Описание категории (до 1000 символов)"
+        None, max_length=1000, description="Описание категории (до 1000 символов)",
     )
     is_active: bool | None = Field(None, description="Статус активности категории")

@@ -1,15 +1,14 @@
-"""
-Бизнес-логика для работы с продуктами
+"""Бизнес-логика для работы с продуктами
 """
 
 import logging
-from typing import List
 
-from src.database.repository.products import ProductRepository
+from fastapi import HTTPException, status
+
 from src.database.repository.categories import CategoryRepository
+from src.database.repository.products import ProductRepository
 from src.database.schema.products import ProductDb
 from src.models.models import Product
-from fastapi import HTTPException, status
 
 
 class ProductService:
@@ -22,8 +21,7 @@ class ProductService:
         category_names: list[str],
         price: int,
     ) -> ProductDb:
-        """
-        Создает новый продукт
+        """Создает новый продукт
 
         Args:
             name: Название продукта
@@ -37,8 +35,9 @@ class ProductService:
         Raises:
             CategoryNotFoundError: Если категория не найдена
             CategoryInactiveError: Если категория неактивна
+
         """
-        logging.info(f"Создание продукта: {name} в категориях {category_names}")
+        logging.info("Создание продукта: %s в категориях %s", name, category_names)
 
         try:
             categories = []
@@ -46,14 +45,14 @@ class ProductService:
                 # Проверяем существование и активность категории
                 category = await CategoryRepository.get_by_name(category_name)
                 if not category:
-                    logging.warning(f"Категория '{category_name}' не найдена")
+                    logging.warning("Категория '%s' не найдена", category_name)
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail=f"Категория '{category_name}' не найдена",
                     )
 
                 if not category.is_active:
-                    logging.warning(f"Категория '{category_name}' неактивна")
+                    logging.warning("Категория '%s' неактивна", category_name)
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Категория '{category_name}' неактивна",
@@ -72,35 +71,34 @@ class ProductService:
 
             # Добавляем категории к продукту
             await ProductRepository.update_categories(
-                product_db.id, [cat.id for cat in categories]
+                product_db.id, [cat.id for cat in categories],
             )
 
             # Получаем обновленный продукт с категориями
             product_with_categories = await ProductRepository.get_by_id_with_categories(
-                product_db.id
+                product_db.id,
             )
             if product_with_categories:
                 logging.info(f"Продукт успешно создан: {name} (ID: {product_db.id})")
                 return product_with_categories
-            else:
-                logging.error(
-                    f"Не удалось получить созданный продукт с категориями: {name}"
-                )
-                return product_db
+            logging.error(
+                "Не удалось получить созданный продукт с категориями: %s", name,
+            )
+            return product_db
 
         except HTTPException:
             raise
         except Exception as e:
-            logging.error(f"Ошибка при создании продукта {name}: {e}")
+            logging.exception("Ошибка при создании продукта %s: %s", name, e)
             raise
 
     @staticmethod
-    async def get_all_products() -> List[ProductDb]:
-        """
-        Получает все продукты
+    async def get_all_products() -> list[ProductDb]:
+        """Получает все продукты
 
         Returns:
             Список всех продуктов
+
         """
         logging.info("Получение всех продуктов")
 
@@ -109,13 +107,12 @@ class ProductService:
             logging.info(f"Получено продуктов: {len(products_db)}")
             return products_db
         except Exception as e:
-            logging.error(f"Ошибка при получении продуктов: {e}")
+            logging.exception("Ошибка при получении продуктов: %s", e)
             raise
 
     @staticmethod
     async def get_product_by_id(product_id: int) -> ProductDb:
-        """
-        Получает продукт по ID
+        """Получает продукт по ID
 
         Args:
             product_id: ID продукта
@@ -125,8 +122,9 @@ class ProductService:
 
         Raises:
             ProductNotFoundError: Если продукт не найден
+
         """
-        logging.info(f"Получение продукта по ID: {product_id}")
+        logging.info("Получение продукта по ID: %s", product_id)
 
         try:
             # В текущей реализации ProductRepository нет метода get_by_id
@@ -135,7 +133,7 @@ class ProductService:
             product = next((p for p in products if p.id == product_id), None)
 
             if not product:
-                logging.warning(f"Продукт с ID {product_id} не найден")
+                logging.warning("Продукт с ID %s не найден", product_id)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Продукт с ID {product_id} не найден",
@@ -146,7 +144,7 @@ class ProductService:
         except HTTPException:
             raise
         except Exception as e:
-            logging.error(f"Ошибка при получении продукта {product_id}: {e}")
+            logging.exception("Ошибка при получении продукта %s: %s", product_id, e)
             raise
 
     @staticmethod
@@ -157,8 +155,7 @@ class ProductService:
         category_names: list[str],
         price: int,
     ) -> None:
-        """
-        Обновляет продукт
+        """Обновляет продукт
 
         Args:
             product_id: ID продукта
@@ -171,8 +168,9 @@ class ProductService:
             ProductNotFoundError: Если продукт не найден
             CategoryNotFoundError: Если категория не найдена
             CategoryInactiveError: Если категория неактивна
+
         """
-        logging.info(f"Обновление продукта ID {product_id}")
+        logging.info("Обновление продукта ID %s", product_id)
 
         try:
             # Проверяем существование продукта
@@ -183,14 +181,14 @@ class ProductService:
                 # Проверяем существование и активность категории
                 category = await CategoryRepository.get_by_name(category_name)
                 if not category:
-                    logging.warning(f"Категория '{category_name}' не найдена")
+                    logging.warning("Категория '%s' не найдена", category_name)
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail=f"Категория '{category_name}' не найдена",
                     )
 
                 if not category.is_active:
-                    logging.warning(f"Категория '{category_name}' неактивна")
+                    logging.warning("Категория '%s' неактивна", category_name)
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Категория '{category_name}' неактивна",
@@ -209,29 +207,29 @@ class ProductService:
 
             # Обновляем категории
             await ProductRepository.update_categories(
-                product_id, [cat.id for cat in categories]
+                product_id, [cat.id for cat in categories],
             )
 
-            logging.info(f"Продукт успешно обновлен: {name}")
+            logging.info("Продукт успешно обновлен: %s", name)
 
         except HTTPException:
             raise
         except Exception as e:
-            logging.error(f"Ошибка при обновлении продукта {product_id}: {e}")
+            logging.exception("Ошибка при обновлении продукта %s: %s", product_id, e)
             raise
 
     @staticmethod
     async def delete_product(product_id: int) -> None:
-        """
-        Удаляет продукт
+        """Удаляет продукт
 
         Args:
             product_id: ID продукта
 
         Raises:
             ProductNotFoundError: Если продукт не найден
+
         """
-        logging.info(f"Удаление продукта ID {product_id}")
+        logging.info("Удаление продукта ID %s", product_id)
 
         try:
             # Проверяем существование продукта
@@ -243,5 +241,5 @@ class ProductService:
         except HTTPException:
             raise
         except Exception as e:
-            logging.error(f"Ошибка при удалении продукта {product_id}: {e}")
+            logging.exception("Ошибка при удалении продукта %s: %s", product_id, e)
             raise

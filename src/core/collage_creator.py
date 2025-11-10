@@ -6,11 +6,13 @@ from PIL import Image, ImageDraw
 from src.core.overlay import Overlay
 from src.models.models import ImageWithProduct
 
+log = logging.getLogger(__name__)
+
 
 class CollageCreator:
     """Класс для создания коллажа из изображений с текстом, размер холста зависит от количества изображений."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cell_size = 900  # Размер каждой ячейки (изображения) 900x900
         self._background_color = (53, 3, 61)
         self._border_color = (126, 100, 126)
@@ -20,7 +22,7 @@ class CollageCreator:
     def _calculate_grid_dimensions(self, image_count: int) -> tuple[int, int]:
         """Рассчитывает оптимальные размеры сетки для заданного количества изображений (до 16).
         Возвращает (колонки, строки).
-        """  # noqa: D205, DOC201
+        """  # noqa: D205
         if image_count <= 0:
             raise ValueError("Количество изображений должно быть больше 0")
         if image_count == 1:
@@ -39,6 +41,7 @@ class CollageCreator:
 
     def _resize_image_to_cell(self, img: Image.Image):
         """Изменяет размер изображения до 900x900 с сохранением пропорций и обрезкой.
+
         Изображение масштабируется так, чтобы короткая сторона стала 900, затем обрезается по центру до 900x900.
         Возвращает картинку и box (0, 0, 900, 900) для совместимости с overlay.
         """
@@ -93,7 +96,9 @@ class CollageCreator:
         )
         # Создаем изображение
         collage = Image.new(
-            "RGB", (canvas_width, canvas_height), self._background_color,
+            "RGB",
+            (canvas_width, canvas_height),
+            self._background_color,
         )
         draw = ImageDraw.Draw(collage)
         # Рисуем рамку
@@ -111,7 +116,10 @@ class CollageCreator:
                 cell_img, img_box = self._resize_image_to_cell(img)
                 # Всегда добавляем оверлей, но с ценой или без в зависимости от is_price
                 cell_img = overlay.add_text_overlay(
-                    cell_img, img_model, img_box, is_price,
+                    cell_img,
+                    img_model,
+                    img_box,
+                    is_price,
                 )
                 row = idx // grid_cols
                 col = idx % grid_cols
@@ -119,10 +127,14 @@ class CollageCreator:
                 y = row * (self._cell_size + self._cell_margin)
                 collage.paste(cell_img, (x, y))
             except Exception as e:
-                logging.exception(f"Ошибка при обработке изображения {img_model.path}: {e}")
+                log.exception(f"Ошибка при обработке изображения {img_model.path}: {e}")
                 raise
         collage.save(output_path, "JPEG", quality=95)
-        logging.info(
-            "Коллаж сохранён в %s (сетка: %sx%s, изображений: %s)", output_path, grid_cols, grid_rows, image_count,
+        log.info(
+            "Коллаж сохранён в %s (сетка: %sx%s, изображений: %s)",
+            output_path,
+            grid_cols,
+            grid_rows,
+            image_count,
         )
         return output_path

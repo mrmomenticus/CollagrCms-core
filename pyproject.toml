@@ -27,8 +27,8 @@ preview = true
 line-length = 88
 
 [tool.ruff.lint]
-select = ["ALL"]
-ignore = ["E501", "DOC502", "D101", "DOC501", "G004", "RET505"]
+select = ["E", "F", "W", "B", "I", "RUF", "N", "LOG", "ERA", "W", "D", "UP", "ANN", "ASYNC", "S", "RET", "TCH", "ARG", "PTH"]
+ignore = ["E501", "RUF002", "RUF003", "D100", "D107", "D101", "RUF001", "D102"]
 fixable = ["ALL"]
 
 

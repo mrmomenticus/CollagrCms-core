@@ -18,10 +18,6 @@ class Config:
             load_dotenv()  # Load environment variables from .env file
             self._initialized = True
 
-    def load(self) -> None:
-        # Environment variables are loaded automatically by load_dotenv()
-        logging.debug("Environment variables loaded successfully")
-
     def get_config(self) -> dict[str, Any]:
         # Return a dictionary with all configuration values
         return {

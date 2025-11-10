@@ -7,7 +7,7 @@ from src.utils.config import config
 
 
 class LoggerConfigurator:
-    def __init__(self):
+    def __init__(self) -> None:
         self.root_logger = logging.getLogger()
         self.root_logger.setLevel(
             self._get_level_from_string(

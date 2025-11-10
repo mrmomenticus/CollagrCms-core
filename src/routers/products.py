@@ -1,6 +1,3 @@
-"""API роутеры для работы с продуктами
-"""
-
 import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
@@ -16,7 +13,7 @@ from src.utils.file import delete_file
 # Создаем роутер для продуктов
 router = APIRouter(prefix="/products", tags=["products"])
 
-
+log = logging.getLogger(__name__)
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_product(
     name: str = Form(...),
@@ -25,7 +22,7 @@ async def create_product(
     price: int = Form(...),
     image: UploadFile = File(...),  # noqa: B008
 ):
-    """Создает новый продукт с изображением
+    """Создает новый продукт с изображением.
 
     Args:
         name: Название продукта
@@ -39,7 +36,7 @@ async def create_product(
 
     """
     category_list = [name.strip() for name in category_names.split(",") if name.strip()]
-    logging.info("API запрос: создание продукта %s в категориях %s", name, category_list)
+    log.info("API запрос: создание продукта %s в категориях %s", name, category_list)
     try:
         # Создаем продукт
         product_db = await ProductService.create_product(
@@ -50,22 +47,22 @@ async def create_product(
         first_category = category_list[0] if category_list else "default"
         image_db = await ImageService.create_image(product_db.id, image, first_category)
 
-        logging.info(
+        log.info(
             f"API ответ: продукт создан {name} (ID: {product_db.id}) с изображением (ID: {image_db.id})",
         )
         return {"image": image_db}
 
     except HTTPException as e:
-        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
         raise e
     except Exception as e:
-        logging.exception("API ошибка при создании продукта %s: %s", name, e)
+        log.exception("API ошибка при создании продукта %s: %s", name, e)
         raise HTTPException(status_code=500, detail="Ошибка создания продукта") from e
 
 
 @router.get("/", response_model=list[ImageWithProduct])
 async def получить_продукты(request: Request):
-    """Получает все продукты с изображениями
+    """Получает все продукты с изображениями.
 
     Args:
         request: HTTP запрос для получения base_url
@@ -74,7 +71,7 @@ async def получить_продукты(request: Request):
         Список продуктов с изображениями
 
     """
-    logging.info("API запрос: получение всех продуктов")
+    log.info("API запрос: получение всех продуктов")
     try:
         # Получаем все изображения с продуктами
         images_db = await ImageService.get_all_images_with_products()
@@ -84,17 +81,17 @@ async def получить_продукты(request: Request):
             images_db, request, include_categories=False,
         )
 
-        logging.info(f"API ответ: возвращено {len(result)} продуктов")
+        log.info(f"API ответ: возвращено {len(result)} продуктов")
         return result
 
     except Exception as e:
-        logging.exception("API ошибка при получении продуктов: %s", e)
+        log.exception("API ошибка при получении продуктов: %s", e)
         raise HTTPException(status_code=500, detail="Ошибка получения продуктов") from e
 
 
 @router.get("/with-categories/")
 async def get_product_with_category(request: Request):
-    """Получает все продукты с полной информацией о категориях
+    """Получает все продукты с полной информацией о категориях.
 
     Args:
         request: HTTP запрос для получения base_url
@@ -103,7 +100,7 @@ async def get_product_with_category(request: Request):
         Список продуктов с информацией о категориях
 
     """
-    logging.info("API запрос: получение продуктов с категориями")
+    log.info("API запрос: получение продуктов с категориями")
     try:
         # Получаем все изображения с продуктами
         images_db = await ImageService.get_all_images_with_products()
@@ -113,19 +110,19 @@ async def get_product_with_category(request: Request):
             images_db, request, include_categories=True,
         )
 
-        logging.info(f"API ответ: возвращено {len(result)} продуктов с категориями")
+        log.info(f"API ответ: возвращено {len(result)} продуктов с категориями")
         return result
 
     except Exception as e:
-        logging.exception("API ошибка при получении продуктов с категориями: %s", e)
+        log.exception("API ошибка при получении продуктов с категориями: %s", e)
         raise HTTPException(
             status_code=500, detail="Ошибка получени from eя продуктов с категориями",
         ) from e
 
 
 @router.get("/by-category/{category_name}/")
-async def get_product_category(category_name: str, request: Request):
-    """Получает все продукты определенной категории
+async def get_product_category(category_name: str, request: Request):# -> dict[str, Any]:
+    """Получает все продукты определенной категории.
 
     Args:
         category_name: Название категории
@@ -135,7 +132,7 @@ async def get_product_category(category_name: str, request: Request):
         Список продуктов указанной категории
 
     """
-    logging.info("API запрос: получение продуктов категории %s", category_name)
+    log.info("API запрос: получение продуктов категории %s", category_name)
     try:
         # Проверяем существование и активность категории
         category = await CategoryService.get_category_by_name(
@@ -167,16 +164,16 @@ async def get_product_category(category_name: str, request: Request):
             "total_products": len(products_data),
         }
 
-        logging.info(
+        log.info(
             f"API ответ: возвращено {len(products_data)} продуктов категории {category_name}",
         )
         return result
 
     except HTTPException as e:
-        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
         raise e
     except Exception as e:
-        logging.exception(
+        log.exception(
             "API ошибка при получении продуктов категории %s: %s", category_name, e,
         )
         raise HTTPException(
@@ -192,7 +189,7 @@ async def update_product(
     category_names: str = Form(...),  # Список названий через запятую
     price: int = Form(...),
 ):
-    """Обновляет продукт
+    """Обновляет продукт.
 
     Args:
         product_id: ID продукта
@@ -206,26 +203,26 @@ async def update_product(
 
     """
     category_list = [name.strip() for name in category_names.split(",") if name.strip()]
-    logging.info("API запрос: обновление продукта ID %s", product_id)
+    log.info("API запрос: обновление продукта ID %s", product_id)
     try:
         await ProductService.update_product(
             product_id, name, description, category_list, price,
         )
 
-        logging.info("API ответ: продукт обновлен %s", name)
+        log.info("API ответ: продукт обновлен %s", name)
         return {"message": "Продукт обновлен"}
 
     except HTTPException as e:
-        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
         raise e
     except Exception as e:
-        logging.exception("API ошибка при обновлении продукта %s: %s", product_id, e)
+        log.exception("API ошибка при обновлении продукта %s: %s", product_id, e)
         raise HTTPException(status_code=500, detail="Ошибка обновления продукта") from e
 
 
 @router.delete("/{product_id}")
 async def delete_product(product_id: int):
-    """Удаляет продукт и связанное изображение
+    """Удаляет продукт и связанное изображение.
 
     Args:
         product_id: ID продукта
@@ -234,7 +231,7 @@ async def delete_product(product_id: int):
         Сообщение об успешном удалении
 
     """
-    logging.info("API запрос: удаление продукта ID %s", product_id)
+    log.info("API запрос: удаление продукта ID %s", product_id)
     try:
         # Получаем изображения продукта для удаления файлов
         images = await ImageService.get_images_by_ids(list_id_products=[product_id])
@@ -247,12 +244,12 @@ async def delete_product(product_id: int):
         # Удаляем продукт (изображения удалятся каскадно)
         await ProductService.delete_product(product_id)
 
-        logging.info("API ответ: продукт удален")
+        log.info("API ответ: продукт удален")
         return {"message": "Продукт удален"}
 
     except HTTPException as e:
-        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
         raise e
     except Exception as e:
-        logging.exception("API ошибка при удалении продукта %s: %s", product_id, e)
+        log.exception("API ошибка при удалении продукта %s: %s", product_id, e)
         raise HTTPException(status_code=500, detail="Ошибка удаления продукта") from e

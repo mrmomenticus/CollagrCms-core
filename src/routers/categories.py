@@ -128,15 +128,13 @@ async def delete_category(
     Returns:
         Сообщение об успешном удалении
 
-
     """
     log.info("API запрос: мягкое удаление категории ID %s", category_id)
     try:
         name_category = await CategoryService.delete_category(category_id, hard_delete)
         if hard_delete:
             return {"message": f"Категория: {name_category} удалена"}
-        else:
-            return {"message": "Категория успешно удалена"}
+        return {"message": "Категория успешно удалена"}
     except Exception as e:
         log.exception(f"API ошибка при удалении категории {category_id}")
         raise HTTPException(status_code=500, detail="Ошибка удаления категории") from e

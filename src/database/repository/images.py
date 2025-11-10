@@ -8,12 +8,14 @@ from src.database.connection import db
 from src.database.schema.images import ImagesDb
 from src.database.schema.products import ProductDb
 
+log = logging.getLogger(__name__)
+
 
 class ImagesRepository:
     @staticmethod
     @db.with_session
     async def add(session, product_id: int, path: str) -> ImagesDb:
-        """Добавляет новое изображение в базу данных
+        """Добавляет новое изображение в базу данных.
 
         Args:
             session: Сессия базы данных
@@ -27,8 +29,10 @@ class ImagesRepository:
             Exception: При ошибке создания изображения
 
         """
-        logging.info(
-            "Добавление изображения в БД для продукта ID %s: %s", product_id, path,
+        log.info(
+            "Добавление изображения в БД для продукта ID %s: %s",
+            product_id,
+            path,
         )
         image = ImagesDb()
         image.path = path
@@ -36,9 +40,9 @@ class ImagesRepository:
         try:
             session.add(image)
             await session.commit()
-            logging.info(f"Изображение успешно добавлено в БД: {path} (ID: {image.id})")
+            log.info(f"Изображение успешно добавлено в БД: {path} (ID: {image.id})")
         except Exception as e:
-            logging.exception("Ошибка при добавлении изображения в БД: %s", e)
+            log.exception("Ошибка при добавлении изображения в БД: %s", e)
             await session.rollback()
             raise e
         return image
@@ -46,7 +50,7 @@ class ImagesRepository:
     @staticmethod
     @db.with_session
     async def get_all(session) -> list[ImagesDb]:
-        """Получает все изображения из базы данных
+        """Получает все изображения из базы данных.
 
         Args:
             session: Сессия базы данных
@@ -58,14 +62,14 @@ class ImagesRepository:
             Exception: При ошибке получения изображений
 
         """
-        logging.info("Получение всех изображений из БД")
+        log.info("Получение всех изображений из БД")
         try:
             result = await session.execute(select(ImagesDb))
             images = result.scalars().all()
-            logging.info(f"Получено изображений из БД: {len(images)}")
+            log.info(f"Получено изображений из БД: {len(images)}")
             return images
         except Exception as e:
-            logging.exception("Ошибка при получении изображений из БД: %s", e)
+            log.exception("Ошибка при получении изображений из БД: %s", e)
             raise e
 
     @staticmethod
@@ -75,7 +79,7 @@ class ImagesRepository:
         list_id_images: list[int] | None = None,
         list_id_products: list[int] | None = None,
     ) -> list[ImagesDb] | None:
-        """Получает изображения с продуктами по списку ID
+        """Получает изображения с продуктами по списку ID.
 
         Args:
             session: Сессия базы данных
@@ -90,13 +94,14 @@ class ImagesRepository:
 
         """
         if list_id_images:
-            logging.info("Получение изображений из БД по ID: %s", list_id_images)
+            log.info("Получение изображений из БД по ID: %s", list_id_images)
         elif list_id_products:
-            logging.info(
-                "Получение изображений из БД по ID продуктов: %s", list_id_products,
+            log.info(
+                "Получение изображений из БД по ID продуктов: %s",
+                list_id_products,
             )
         else:
-            logging.info("Не переданы ID для поиска изображений в БД")
+            log.info("Не переданы ID для поиска изображений в БД")
             return None
 
         try:
@@ -115,7 +120,7 @@ class ImagesRepository:
                     .order_by(order_case),
                 )
                 images = result.unique().scalars().all()
-                logging.info(f"Найдено изображений по ID продуктов: {len(images)}")
+                log.info(f"Найдено изображений по ID продуктов: {len(images)}")
                 return images
             if list_id_images:
                 # Создаем case для сохранения порядка
@@ -132,18 +137,18 @@ class ImagesRepository:
                     .order_by(order_case),
                 )
                 images = result.unique().scalars().all()
-                logging.info(f"Найдено изображений по ID: {len(images)}")
+                log.info(f"Найдено изображений по ID: {len(images)}")
                 return images
             # Если не переданы ID, возвращаем None
             return None
         except Exception as e:
-            logging.exception("Ошибка при получении изображений из БД: %s", e)
+            log.exception("Ошибка при получении изображений из БД: %s", e)
             raise e
 
     @staticmethod
     @db.with_session
     async def get_all_with_products(session) -> list[ImagesDb]:
-        """Получает все изображения с информацией о продуктах из базы данных
+        """Получает все изображения с информацией о продуктах из базы данных.
 
         Args:
             session: Сессия базы данных
@@ -155,7 +160,7 @@ class ImagesRepository:
             Exception: При ошибке получения изображений
 
         """
-        logging.info("Получение всех изображений с продуктами из БД")
+        log.info("Получение всех изображений с продуктами из БД")
         try:
             result = await session.execute(
                 select(ImagesDb).options(
@@ -163,16 +168,16 @@ class ImagesRepository:
                 ),
             )
             images = result.unique().scalars().all()
-            logging.info(f"Получено изображений с продуктами из БД: {len(images)}")
+            log.info(f"Получено изображений с продуктами из БД: {len(images)}")
             return images
         except Exception as e:
-            logging.exception("Ошибка при получении изображений с продуктами из БД: %s", e)
+            log.exception("Ошибка при получении изображений с продуктами из БД: %s", e)
             raise
 
     @staticmethod
     @db.with_session
     async def get_by_id(session, image_id: int) -> ImagesDb | None:
-        """Получает изображение по ID из базы данных
+        """Получает изображение по ID из базы данных.
 
         Args:
             session: Сессия базы данных
@@ -185,7 +190,7 @@ class ImagesRepository:
             Exception: При ошибке получения изображения
 
         """
-        logging.info("Получение изображения из БД по ID: %s", image_id)
+        log.info("Получение изображения из БД по ID: %s", image_id)
         try:
             result = await session.execute(
                 select(ImagesDb)
@@ -194,20 +199,22 @@ class ImagesRepository:
             )
             image = result.unique().scalars().first()
             if image:
-                logging.info(f"Изображение найдено в БД: {image.path}")
+                log.info(f"Изображение найдено в БД: {image.path}")
             else:
-                logging.info("Изображение с ID %s не найдено в БД", image_id)
+                log.info("Изображение с ID %s не найдено в БД", image_id)
             return image
         except Exception as e:
-            logging.exception(
-                "Ошибка при получении изображения из БД по ID %s: %s", image_id, e,
+            log.exception(
+                "Ошибка при получении изображения из БД по ID %s: %s",
+                image_id,
+                e,
             )
             raise
 
     @staticmethod
     @db.with_session
     async def update(session, image_id: int, path: str):
-        """Обновляет изображение в базе данных
+        """Обновляет изображение в базе данных.
 
         Args:
             session: Сессия базы данных
@@ -219,25 +226,26 @@ class ImagesRepository:
             Exception: При ошибке обновления изображения
 
         """
-        logging.info("Обновление изображения в БД: ID %s, новый путь %s", image_id, path)
+        log.info("Обновление изображения в БД: ID %s, новый путь %s", image_id, path)
         try:
             result = await session.execute(
                 select(ImagesDb).where(ImagesDb.id == image_id),
             )
             image = result.scalars().first()
             if not image:
-                logging.warning(
-                    "Изображение с ID %s не найдено в БД для обновления", image_id,
+                log.warning(
+                    "Изображение с ID %s не найдено в БД для обновления",
+                    image_id,
                 )
                 raise NoResultFound(f"Image with ID {image_id} not found")
 
             old_path = image.path
             image.path = path
             await session.commit()
-            logging.info("Изображение успешно обновлено в БД: %s -> %s", old_path, path)
+            log.info("Изображение успешно обновлено в БД: %s -> %s", old_path, path)
         except NoResultFound:
             raise
         except Exception as e:
-            logging.exception("Ошибка при обновлении изображения в БД: %s", e)
+            log.exception("Ошибка при обновлении изображения в БД: %s", e)
             await session.rollback()
             raise

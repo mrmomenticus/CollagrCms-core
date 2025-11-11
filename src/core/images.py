@@ -1,6 +1,3 @@
-"""Бизнес-логика для работы с изображениями
-"""
-
 import logging
 
 from fastapi import HTTPException, Request, UploadFile, status
@@ -10,17 +7,17 @@ from src.database.schema.images import ImagesDb
 from src.models.models import ImageWithProduct
 from src.utils.file import create_path, create_uuid, created_file, delete_file
 
-# Заменены кастомные исключения на стандартные HTTPException
+log = logging.getLogger(__name__)
 
 
 class ImageService:
-    """Сервис для работы с изображениями"""
-
     @staticmethod
     async def create_image(
-        product_id: int, image_file: UploadFile, category_name: str,
+        product_id: int,
+        image_file: UploadFile,
+        category_name: str,
     ) -> ImagesDb:
-        """Создает новое изображение для продукта
+        """Создает новое изображение для продукта.
 
         Args:
             product_id: ID продукта
@@ -34,11 +31,11 @@ class ImageService:
             InvalidFileError: Если файл неверный
 
         """
-        logging.info("Создание изображения для продукта ID %s", product_id)
+        log.info("Создание изображения для продукта ID %s", product_id)
 
         try:
             if not image_file.filename:
-                logging.warning("Неверное имя файла")
+                log.warning("Неверное имя файла")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Неверное имя файла",
@@ -49,56 +46,56 @@ class ImageService:
 
             # Создаем запись в БД
             image_db = await ImagesRepository.add(product_id, path)
-            logging.info(f"Изображение успешно создано: {path} (ID: {image_db.id})")
+            log.info(f"Изображение успешно создано: {path} (ID: {image_db.id})")
             return image_db
 
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception(
-                "Ошибка при создании изображения для продукта %s: %s", product_id, e,
+            log.exception(
+                "Ошибка при создании изображения для продукта %s: %s",
+                product_id,
+                e,
             )
             raise
 
     @staticmethod
     async def get_all_images() -> list[ImagesDb]:
-        """Получает все изображения
+        """Получает все изображения.
 
         Returns:
             Список всех изображений
 
         """
-        logging.info("Получение всех изображений")
+        log.info("Получение всех изображений")
 
         try:
             images_db = await ImagesRepository.get_all()
-            logging.info(f"Получено изображений: {len(images_db)}")
+            log.info(f"Получено изображений: {len(images_db)}")
             return images_db
         except Exception as e:
-            logging.exception("Ошибка при получении изображений: %s", e)
+            log.exception("Ошибка при получении изображений: %s", e)
             raise
 
     @staticmethod
     async def get_all_images_with_products() -> list[ImagesDb]:
-        """Получает все изображения с информацией о продуктах
+        """Получает все изображения с информацией о продуктах.
 
         Returns:
             Список изображений с продуктами
 
         """
-        logging.info("Получение всех изображений с продуктами")
-
         try:
             images_db = await ImagesRepository.get_all_with_products()
-            logging.info(f"Получено изображений с продуктами: {len(images_db)}")
+            log.debug(f"Получено изображений с продуктами: {len(images_db)}")
             return images_db
         except Exception as e:
-            logging.exception("Ошибка при получении изображений с продуктами: %s", e)
-            raise
+            log.exception(f"Ошибка при получении изображений с продуктами: {e}")
+            raise e
 
     @staticmethod
     async def get_image_by_id(image_id: int) -> ImagesDb:
-        """Получает изображение по ID
+        """Получает изображение по ID.
 
         Args:
             image_id: ID изображения
@@ -110,23 +107,23 @@ class ImageService:
             ImageNotFoundError: Если изображение не найдено
 
         """
-        logging.info("Получение изображения по ID: %s", image_id)
+        log.info("Получение изображения по ID: %s", image_id)
 
         try:
             image_db = await ImagesRepository.get_by_id(image_id)
             if not image_db:
-                logging.warning("Изображение с ID %s не найдено", image_id)
+                log.warning("Изображение с ID %s не найдено", image_id)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Изображение с ID {image_id} не найдено",
                 )
 
-            logging.info(f"Изображение найдено: {image_db.path}")
+            log.info(f"Изображение найдено: {image_db.path}")
             return image_db
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception("Ошибка при получении изображения %s: %s", image_id, e)
+            log.exception("Ошибка при получении изображения %s: %s", image_id, e)
             raise
 
     @staticmethod
@@ -134,7 +131,7 @@ class ImageService:
         list_id_images: list[int] | None = None,
         list_id_products: list[int] | None = None,
     ) -> list[ImagesDb]:
-        """Получает изображения по списку ID изображений или продуктов
+        """Получает изображения по списку ID изображений или продуктов.
 
         Args:
             list_id_images: Список ID изображений
@@ -148,28 +145,30 @@ class ImageService:
 
         """
         if list_id_images:
-            logging.info("Получение изображений по ID: %s", list_id_images)
+            log.info("Получение изображений по ID: %s", list_id_images)
         elif list_id_products:
-            logging.info("Получение изображений по ID продуктов: %s", list_id_products)
+            log.info("Получение изображений по ID продуктов: %s", list_id_products)
         else:
-            logging.warning("Не переданы ID для поиска изображений")
+            log.warning("Не переданы ID для поиска изображений")
             return []
 
         try:
             images_db = await ImagesRepository.get_by_ids_with_products(
-                list_id_images=list_id_images, list_id_products=list_id_products,
+                list_id_images=list_id_images,
+                list_id_products=list_id_products,
             )
 
             if not images_db:
                 if list_id_images:
-                    logging.warning("Изображения с ID %s не найдены", list_id_images)
+                    log.warning("Изображения с ID %s не найдены", list_id_images)
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail=f"Изображения с ID {list_id_images} не найдены",
                     )
                 if list_id_products:
-                    logging.warning(
-                        "Изображения для продуктов %s не найдены", list_id_products,
+                    log.warning(
+                        "Изображения для продуктов %s не найдены",
+                        list_id_products,
                     )
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
@@ -177,19 +176,21 @@ class ImageService:
                     )
                 return []
 
-            logging.info(f"Найдено изображений: {len(images_db)}")
+            log.info(f"Найдено изображений: {len(images_db)}")
             return images_db
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception("Ошибка при получении изображений: %s", e)
+            log.exception("Ошибка при получении изображений: %s", e)
             raise
 
     @staticmethod
     async def update_image(
-        image_id: int, new_image_file: UploadFile, category_name: str,
+        image_id: int,
+        new_image_file: UploadFile,
+        category_name: str,
     ) -> None:
-        """Обновляет изображение
+        """Обновляет изображение.
 
         Args:
             image_id: ID изображения
@@ -201,7 +202,7 @@ class ImageService:
             InvalidFileError: Если файл неверный
 
         """
-        logging.info("Обновление изображения ID %s", image_id)
+        log.info("Обновление изображения ID %s", image_id)
 
         try:
             # Проверяем существование изображения
@@ -209,7 +210,7 @@ class ImageService:
                 list_id_images=[image_id],
             )
             if not existing_images:
-                logging.warning("Изображение с ID %s не найдено", image_id)
+                log.warning("Изображение с ID %s не найдено", image_id)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Изображение с ID {image_id} не найдено",
@@ -226,19 +227,21 @@ class ImageService:
             # Удаляем старый файл
             await delete_file(existing_image.path)
 
-            logging.info("Изображение успешно обновлено: %s", new_path)
+            log.info("Изображение успешно обновлено: %s", new_path)
 
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception("Ошибка при обновлении изображения %s: %s", image_id, e)
+            log.exception("Ошибка при обновлении изображения %s: %s", image_id, e)
             raise
 
     @staticmethod
     def format_products_with_images(
-        images_db: list[ImagesDb], request: Request, include_categories: bool = False,
+        images_db: list[ImagesDb],
+        request: Request,
+        include_categories: bool = False,
     ) -> list[dict]:
-        """Форматирует изображения с продуктами для API ответа
+        """Форматирует изображения с продуктами для API ответа.
 
         Args:
             images_db: Список изображений из БД
@@ -249,7 +252,7 @@ class ImageService:
             Список отформатированных продуктов с изображениями
 
         """
-        logging.info(f"Форматирование {len(images_db)} продуктов с изображениями")
+        log.info(f"Форматирование {len(images_db)} продуктов с изображениями")
 
         base_url = str(request.base_url).rstrip("/")
         result = []
@@ -275,12 +278,12 @@ class ImageService:
 
             result.append(product_data)
 
-        logging.info(f"Отформатировано продуктов: {len(result)}")
+        log.info(f"Отформатировано продуктов: {len(result)}")
         return result
 
     @staticmethod
     def format_products_info(images_db: list[ImagesDb]) -> list[dict]:
-        """Форматирует информацию о продуктах для коллажей
+        """Форматирует информацию о продуктах для коллажей.
 
         Args:
             images_db: Список изображений из БД
@@ -289,7 +292,7 @@ class ImageService:
             Список информации о продуктах
 
         """
-        logging.info(f"Форматирование информации о {len(images_db)} продуктах")
+        log.info(f"Форматирование информации о {len(images_db)} продуктах")
 
         products_info = []
         for img in images_db:
@@ -305,13 +308,13 @@ class ImageService:
                 "path": img.path,
             })
 
-        logging.info(f"Отформатирована информация о {len(products_info)} продуктах")
+        log.info(f"Отформатирована информация о {len(products_info)} продуктах")
         return products_info
 
 
 # Вспомогательная функция для обработки загрузки файлов
 async def handle_file_upload(image: UploadFile, tag: str) -> str:
-    """Обрабатывает загрузку файла изображения
+    """Обрабатывает загрузку файла изображения.
 
     Args:
         image: Загружаемый файл

@@ -9,6 +9,8 @@ from src.database.schema.products import ProductDb, product_categories
 from src.models.models import Product
 
 log = logging.getLogger(__name__)
+
+
 class ProductRepository:
     @staticmethod
     @db.with_session

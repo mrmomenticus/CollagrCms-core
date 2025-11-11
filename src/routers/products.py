@@ -14,6 +14,8 @@ from src.utils.file import delete_file
 router = APIRouter(prefix="/products", tags=["products"])
 
 log = logging.getLogger(__name__)
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_product(
     name: str = Form(...),
@@ -121,7 +123,7 @@ async def get_product_with_category(request: Request):
 
 
 @router.get("/by-category/{category_name}/")
-async def get_product_category(category_name: str, request: Request):# -> dict[str, Any]:
+async def get_product_category(category_name: str, request: Request):  # -> dict[str, Any]:
     """Получает все продукты определенной категории.
 
     Args:

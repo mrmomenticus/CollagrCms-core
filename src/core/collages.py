@@ -23,10 +23,10 @@ class CollageService:
     async def create_collage_by_ids(
         list_id: list[int], filename: str = "collage.jpg", is_price: bool = True,
     ) -> str:
-        """Создает коллаж из выбранных изображений по их ID
+        """Создает коллаж из выбранных изображений по их ID.
 
         Args:
-            list_id: Список ID изображений (от 1 до 12)
+            list_id: Список ID изображений (от 1 до 16)
             filename: Имя файла коллажа
             is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
@@ -38,11 +38,11 @@ class CollageService:
             ImageNotFoundError: Если изображения не найдены
 
         """
-        logging.info(f"Создание коллажа из {len(list_id)} изображений")
+        log.info(f"Создание коллажа из {len(list_id)} изображений")
 
         if len(list_id) < 1 or len(list_id) > 12:
             error_msg = f"Количество изображений должно быть от 1 до 12, получено: {len(list_id)}"
-            logging.warning(error_msg)
+            log.warning(error_msg)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=error_msg,
@@ -57,7 +57,7 @@ class CollageService:
                 found_ids = [img.id for img in images_db]
                 missing_ids = [img_id for img_id in list_id if img_id not in found_ids]
                 error_msg = f"Изображения с ID {missing_ids} не найдены"
-                logging.warning(error_msg)
+                log.warning(error_msg)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=error_msg,
@@ -68,34 +68,34 @@ class CollageService:
 
             # Создаем коллаж
             collage_path = CollageCreator().create(image_models, filename, is_price)
-            logging.info("Коллаж успешно создан: %s", collage_path)
+            log.info("Коллаж успешно создан: %s", collage_path)
             return collage_path
 
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception("Ошибка при создании коллажа: %s", e)
+            log.exception("Ошибка при создании коллажа: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при создании коллажа: {e}",
             ) from e
 
     @staticmethod
-    async def get_all_products_info() -> dict:
-        """Возвращает информацию о всех доступных товарах для создания коллажей
+    async def get_all_products_info() -> dict | None:
+        """Возвращает информацию о всех доступных товарах для создания коллажей.
 
         Returns:
             Словарь с информацией о товарах и возможностях создания коллажей
 
         """
-        logging.info("Получение информации о всех продуктах для коллажей")
+        log.info("Получение информации о всех продуктах для коллажей")
 
         try:
             # Получаем все изображения с товарами
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.info("Products not found")
+                log.info("Products not found")
                 return {
                     "total_images": 0,
                     "total_batches": 0,
@@ -120,18 +120,18 @@ class CollageService:
                 "message": f"Found {total_images} products. Can create {total_batches} collages with {batch_size} products each.",
             }
 
-            logging.info("Информация о продуктах получена: %s товаров", total_images)
+            log.info("Информация о продуктах получена: %s товаров", total_images)
             return result
 
         except Exception as e:
-            logging.exception("Ошибка при получении информации о продуктах: %s", e)
+            log.exception("Ошибка при получении информации о продуктах: %s", e)
             raise
 
     @staticmethod
     async def get_products_by_categories(
-        category_names: list[str] | None = None,
-    ) -> dict:
-        """Возвращает информацию о товарах по заданным категориям для создания коллажей
+        category_names: list[str]
+    ) -> dict | None:
+        """Возвращает информацию о товарах по заданным категориям для создания коллажей.
 
         Args:
             category_names: Список названий категорий для фильтрации
@@ -140,25 +140,16 @@ class CollageService:
             Словарь с информацией о товарах и возможностях создания коллажей
 
         """
-        logging.info(
+        log.debug(
             "Получение информации о продуктах для категорий: %s", category_names,
-        )
+        ) 
 
         try:
             # Получаем все изображения с товарами
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.info("Products not found")
-                return {
-                    "total_images": 0,
-                    "total_batches": 0,
-                    "batch_size": 12,
-                    "has_images": False,
-                    "message": "Products not found",
-                }
-
-            # Фильтруем по категориям, если указаны
+                return None
             filtered_images_db = all_images_db
             if category_names:
                 filtered_images_db = [
@@ -168,7 +159,7 @@ class CollageService:
                 ]
 
             if not filtered_images_db:
-                logging.info("Products not found for categories: %s", category_names)
+                log.info("Products not found for categories: %s", category_names)
                 return {
                     "total_images": 0,
                     "total_batches": 0,
@@ -195,13 +186,13 @@ class CollageService:
                 "message": f"Found {total_images} products in categories {category_names}. Can create {total_batches} collages with {batch_size} products each.",
             }
 
-            logging.info(
+            log.info(
                 "Информация о продуктах для категорий получена: %s товаров", total_images,
             )
             return result
 
         except Exception as e:
-            logging.exception(
+            log.exception(
                 "Ошибка при получении информации о продуктах по категориям: %s", e,
             )
             raise
@@ -230,11 +221,11 @@ class CollageService:
 
         """
         if category_names:
-            logging.info(
+            log.info(
                 "Создание коллажа пакета по категориям: %s, размер %s, начальный индекс %s", category_names, batch_size, start_index,
             )
         else:
-            logging.info(
+            log.info(
                 "Создание коллажа пакета: размер %s, начальный индекс %s", batch_size, start_index,
             )
 
@@ -243,7 +234,7 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.warning("Products not found")
+                log.warning("Products not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Products not found",
@@ -258,7 +249,7 @@ class CollageService:
                 ]
 
             if not all_images_db:
-                logging.warning("Products not found for categories: %s", category_names)
+                log.warning("Products not found for categories: %s", category_names)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Products not found for categories: {category_names}",
@@ -270,7 +261,7 @@ class CollageService:
             # Проверяем, не выходит ли start_index за пределы
             if start_index >= total_images:
                 error_msg = f"Начальный индекс {start_index} превышает общее количество товаров ({total_images})"
-                logging.warning(error_msg)
+                log.warning(error_msg)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_msg,
@@ -312,13 +303,13 @@ class CollageService:
                 "message": f"Collage {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
             }
 
-            logging.info("Коллаж пакета создан: %s", collage_filename)
+            log.info("Коллаж пакета создан: %s", collage_filename)
             return collage_path, batch_info
 
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception("Ошибка при создании коллажа пакета: %s", e)
+            log.exception("Ошибка при создании коллажа пакета: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при создании коллажа пакета: {e}",
@@ -346,11 +337,11 @@ class CollageService:
 
         """
         if category_names:
-            logging.info(
+            log.info(
                 "Создание всех коллажей в ZIP-архиве по категориям: %s с размером пакета %s", category_names, batch_size,
             )
         else:
-            logging.info(
+            log.info(
                 "Создание всех коллажей в ZIP-архиве с размером пакета %s", batch_size,
             )
 
@@ -359,7 +350,7 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.warning("Products not found")
+                log.warning("Products not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Products not found",
@@ -374,7 +365,7 @@ class CollageService:
                 ]
 
             if not all_images_db:
-                logging.warning("Products not found for categories: %s", category_names)
+                log.warning("Products not found for categories: %s", category_names)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Products not found for categories: {category_names}",
@@ -413,7 +404,7 @@ class CollageService:
                         # Добавляем файл в ZIP-архив
                         zip_file.write(collage_path, collage_filename)
 
-                        logging.info(
+                        log.info(
                             f"Создан коллаж {batch_num + 1}/{total_batches}: {collage_filename}",
                         )
 
@@ -422,7 +413,7 @@ class CollageService:
                 if pathlib.Path(temp_collages_dir).exists():
                     shutil.rmtree(temp_collages_dir)
             except Exception as e:
-                logging.warning(
+                log.warning(
                     "Не удалось удалить временную папку %s: %s", temp_collages_dir, e,
                 )
 
@@ -436,7 +427,7 @@ class CollageService:
                 "message": f"Created {total_batches} collages from {total_images} products in categories {category_names}",
             }
 
-            logging.info(
+            log.info(
                 f"Все коллажи созданы и упакованы в ZIP: {creation_info['zip_filename']}",
             )
             return zip_path, creation_info
@@ -444,7 +435,7 @@ class CollageService:
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception("Ошибка при создании всех коллажей: %s", e)
+            log.exception("Ошибка при создании всех коллажей: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Ошибка при создании всех коллажей: {e}",
@@ -472,11 +463,11 @@ class CollageService:
 
         """
         if category_names:
-            logging.info(
+            log.info(
                 "Получение информации о пакете по категориям: %s, индекс %s, размер %s", category_names, start_index, batch_size,
             )
         else:
-            logging.info(
+            log.info(
                 "Получение информации о пакете: индекс %s, размер %s", start_index, batch_size,
             )
 
@@ -485,7 +476,7 @@ class CollageService:
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.warning("Products not found")
+                log.warning("Products not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Products not found",
@@ -500,7 +491,7 @@ class CollageService:
                 ]
 
             if not all_images_db:
-                logging.warning("Products not found for categories: %s", category_names)
+                log.warning("Products not found for categories: %s", category_names)
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Products not found for categories: {category_names}",
@@ -512,7 +503,7 @@ class CollageService:
             # Проверяем, не выходит ли start_index за пределы
             if start_index >= total_images:
                 error_msg = f"Начальный индекс {start_index} превышает общее количество товаров ({total_images})"
-                logging.warning(error_msg)
+                log.warning(error_msg)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_msg,
@@ -544,7 +535,7 @@ class CollageService:
                 "message": f"Batch {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
             }
 
-            logging.info(
+            log.info(
                 "Информация о пакете получена: пакет %s/%s", batch_number, total_batches,
             )
             return result
@@ -552,7 +543,7 @@ class CollageService:
         except HTTPException:
             raise
         except Exception as e:
-            logging.exception("Ошибка при получении информации о пакете: %s", e)
+            log.exception("Ошибка при получении информации о пакете: %s", e)
             raise
 
     @staticmethod
@@ -569,18 +560,18 @@ class CollageService:
 
         """
         if category_names:
-            logging.info(
+            log.info(
                 "Получение статуса пакетной обработки для категорий: %s", category_names,
             )
         else:
-            logging.info("Получение статуса пакетной обработки")
+            log.info("Получение статуса пакетной обработки")
 
         try:
             # Получаем все изображения с товарами
             all_images_db = await ImageService.get_all_images_with_products()
 
             if not all_images_db:
-                logging.info("Products not found")
+                log.info("Products not found")
                 return {
                     "total_images": 0,
                     "total_batches": 0,
@@ -599,7 +590,7 @@ class CollageService:
                 ]
 
             if not all_images_db:
-                logging.info("Products not found for categories: %s", category_names)
+                log.info("Products not found for categories: %s", category_names)
                 return {
                     "total_images": 0,
                     "total_batches": 0,
@@ -622,13 +613,13 @@ class CollageService:
                 "message": f"Found {total_images} products in categories {category_names}. Can create {total_batches} collages with {batch_size} products each.",
             }
 
-            logging.info(
+            log.info(
                 "Статус получен: %s товаров, %s пакетов", total_images, total_batches,
             )
             return result
 
         except Exception as e:
-            logging.exception("Ошибка при получении статуса: %s", e)
+            log.exception("Ошибка при получении статуса: %s", e)
             raise
 
     @staticmethod
@@ -639,7 +630,7 @@ class CollageService:
             Результат очистки
 
         """
-        logging.info("Очистка временных файлов коллажей")
+        log.info("Очистка временных файлов коллажей")
 
         try:
             # Очищаем временные файлы в /tmp
@@ -662,7 +653,7 @@ class CollageService:
                             shutil.rmtree(dir_path)
                             cleaned_dirs.append(dir_path)
                 except Exception as e:
-                    logging.warning("Не удалось очистить шаблон %s: %s", pattern, e)
+                    log.warning("Не удалось очистить шаблон %s: %s", pattern, e)
 
             result = {
                 "cleaned_files": cleaned_files,
@@ -671,9 +662,9 @@ class CollageService:
                 "message": f"Очищено {len(cleaned_files)} файлов и {len(cleaned_dirs)} папок",
             }
 
-            logging.info(f"Очистка завершена: {result['total_cleaned']} элементов")
+            log.info(f"Очистка завершена: {result['total_cleaned']} элементов")
             return result
 
         except Exception as e:
-            logging.exception("Ошибка при очистке временных файлов: %s", e)
+            log.exception("Ошибка при очистке временных файлов: %s", e)
             raise

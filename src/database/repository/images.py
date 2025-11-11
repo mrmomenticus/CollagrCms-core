@@ -1,7 +1,7 @@
 import logging
 
 from sqlalchemy import case, select
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload
 
 from src.database.connection import db
@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 class ImagesRepository:
     @staticmethod
     @db.with_session
-    async def add(session, product_id: int, path: str) -> ImagesDb:
+    async def add(session, product_id: int, path: str) -> ImagesDb | None:
         """Добавляет новое изображение в базу данных.
 
         Args:
@@ -25,15 +25,9 @@ class ImagesRepository:
         Returns:
             Созданное изображение
 
-        Raises:
-            Exception: При ошибке создания изображения
 
         """
-        log.info(
-            "Добавление изображения в БД для продукта ID %s: %s",
-            product_id,
-            path,
-        )
+        log.debug(f"Добавление изображения в БД для продукта ID {product_id}: {path}")
         image = ImagesDb()
         image.path = path
         image.product_id = product_id
@@ -41,10 +35,10 @@ class ImagesRepository:
             session.add(image)
             await session.commit()
             log.info(f"Изображение успешно добавлено в БД: {path} (ID: {image.id})")
-        except Exception as e:
-            log.exception("Ошибка при добавлении изображения в БД: %s", e)
+        except SQLAlchemyError as e:
+            log.exception(f"Ошибка при добавлении изображения в БД: {e}")
             await session.rollback()
-            raise e
+            return None
         return image
 
     @staticmethod
@@ -160,7 +154,6 @@ class ImagesRepository:
             Exception: При ошибке получения изображений
 
         """
-        log.info("Получение всех изображений с продуктами из БД")
         try:
             result = await session.execute(
                 select(ImagesDb).options(
@@ -168,11 +161,11 @@ class ImagesRepository:
                 ),
             )
             images = result.unique().scalars().all()
-            log.info(f"Получено изображений с продуктами из БД: {len(images)}")
+            log.debug(f"Получено изображений с продуктами из БД: {len(images)}")
             return images
         except Exception as e:
             log.exception("Ошибка при получении изображений с продуктами из БД: %s", e)
-            raise
+            raise e
 
     @staticmethod
     @db.with_session
@@ -237,15 +230,12 @@ class ImagesRepository:
                     "Изображение с ID %s не найдено в БД для обновления",
                     image_id,
                 )
-                raise NoResultFound(f"Image with ID {image_id} not found")
 
             old_path = image.path
             image.path = path
             await session.commit()
             log.info("Изображение успешно обновлено в БД: %s -> %s", old_path, path)
-        except NoResultFound:
-            raise
-        except Exception as e:
+        except SQLAlchemyError as e:
             log.exception("Ошибка при обновлении изображения в БД: %s", e)
             await session.rollback()
-            raise
+            raise ValueError from e

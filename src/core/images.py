@@ -27,37 +27,20 @@ class ImageService:
         Returns:
             Созданное изображение
 
-        Raises:
-            InvalidFileError: Если файл неверный
-
         """
-        log.info("Создание изображения для продукта ID %s", product_id)
-
-        try:
-            if not image_file.filename:
-                log.warning("Неверное имя файла")
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Неверное имя файла",
-                )
-
-            # Обрабатываем загрузку файла
-            path = await handle_file_upload(image_file, category_name)
-
-            # Создаем запись в БД
-            image_db = await ImagesRepository.add(product_id, path)
-            log.info(f"Изображение успешно создано: {path} (ID: {image_db.id})")
-            return image_db
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.exception(
-                "Ошибка при создании изображения для продукта %s: %s",
-                product_id,
-                e,
+        log.debug("Создание изображения для продукта ID %s", product_id)
+        if not image_file.filename:
+            log.warning("Неверное имя файла")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Неверное имя файла",
             )
-            raise
+        # Обрабатываем загрузку файла
+        path = await handle_file_upload(image_file, category_name)
+        # Создаем запись в БД
+        image_db = await ImagesRepository.add(product_id, path)
+        log.debug(f"Изображение успешно создано: {path} (ID: {image_db.id})")
+        return image_db
 
     @staticmethod
     async def get_all_images() -> list[ImagesDb]:
@@ -78,7 +61,7 @@ class ImageService:
             raise
 
     @staticmethod
-    async def get_all_images_with_products() -> list[ImagesDb]:
+    async def get_all_images_with_products() -> list[ImagesDb] | None:
         """Получает все изображения с информацией о продуктах.
 
         Returns:
@@ -88,6 +71,8 @@ class ImageService:
         try:
             images_db = await ImagesRepository.get_all_with_products()
             log.debug(f"Получено изображений с продуктами: {len(images_db)}")
+            if not images_db:
+                log.warning("Изображений с продуктами не найдено")
             return images_db
         except Exception as e:
             log.exception(f"Ошибка при получении изображений с продуктами: {e}")

@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 class ImagesRepository:
     @staticmethod
     @db.with_session
-    async def add(session, product_id: int, path: str) -> ImagesDb | None:
+    async def add(session, product_id: int, path: str) -> ImagesDb:
         """Добавляет новое изображение в базу данных.
 
         Args:
@@ -28,9 +28,7 @@ class ImagesRepository:
 
         """
         log.debug(f"Добавление изображения в БД для продукта ID {product_id}: {path}")
-        image = ImagesDb()
-        image.path = path
-        image.product_id = product_id
+        image = ImagesDb(path=path, product_id=product_id)
         try:
             session.add(image)
             await session.commit()
@@ -38,7 +36,7 @@ class ImagesRepository:
         except SQLAlchemyError as e:
             log.exception(f"Ошибка при добавлении изображения в БД: {e}")
             await session.rollback()
-            return None
+            raise e
         return image
 
     @staticmethod

@@ -11,7 +11,7 @@ from src.utils.file import delete_file
 # Кастомные исключения удалены — используем стандартные HTTPException
 
 # Создаем роутер для продуктов
-router = APIRouter(prefix="/products", tags=["products"])
+router = APIRouter(prefix="/v1/products", tags=["products"])
 
 log = logging.getLogger(__name__)
 

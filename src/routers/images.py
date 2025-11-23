@@ -11,7 +11,7 @@ from src.core.images import ImageService
 # Кастомные исключения удалены — используем стандартные HTTPException
 
 # Создаем роутер для изображений
-router = APIRouter(prefix="/media", tags=["images"])
+router = APIRouter(prefix="/v1/media", tags=["images"])
 
 
 @router.get("/{image_id}")

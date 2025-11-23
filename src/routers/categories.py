@@ -7,7 +7,7 @@ from src.core.categories import CategoryService
 from src.models.models import Category, CategoryCreateRequest, CategoryUpdateRequest
 
 # Создаем роутер для категорий
-router = APIRouter(prefix="/categories", tags=["categories"])
+router = APIRouter(prefix="/v1/categories", tags=["categories"])
 log = logging.getLogger(__name__)
 
 

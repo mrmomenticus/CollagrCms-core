@@ -59,3 +59,13 @@ class CategoryUpdateRequest(BaseModel):
         None, max_length=1000, description="Описание категории (до 1000 символов)",
     )
     is_active: bool | None = Field(None, description="Статус активности категории")
+
+
+class CollageInfoResponse(BaseModel):
+    total_images: int = Field(0, description="Общее количество изображений")
+    total_batches: int = Field(0, description="Общее количество пакетов")
+    batch_size: int = Field(16, description="Размер пакета")
+    has_images: bool = Field(False, description="Есть ли изображения")
+    message: str = Field("", description="Сообщение о статусе")
+    products: list[dict] | None = Field(None, description="Список продуктов (опционально)")
+    categories: list[str] | None = Field(None, description="Список категорий (опционально)")

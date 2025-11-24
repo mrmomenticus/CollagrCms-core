@@ -1,16 +1,9 @@
-import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-
-# Add src to path
-sys.path.append("src")
-
-from src.database.schema.base import Base
-from src.utils.config import config as app_config
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,17 +16,15 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
+from src.database.schema.base import Base
+# Import all models to register them with Base.metadata
+from src.database.schema import categories, images, products
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-
-
-def get_url():
-    db_config = app_config.get_database_config()
-    return f"postgresql://{db_config['user']}:{db_config['password']}@{db_config['host']}:{db_config['port']}/{db_config['name']}"
 
 
 def run_migrations_offline() -> None:
@@ -48,7 +39,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = get_url()
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -68,7 +59,7 @@ def run_migrations_online() -> None:
 
     """
     connectable = engine_from_config(
-        {"sqlalchemy.url": get_url()},
+        config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

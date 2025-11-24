@@ -1,0 +1,30 @@
+name: Python Test Only
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup pacman
+      run: | 
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm base-devel git
+
+    - name: Install dependencies
+      run: |
+        pacman -S uv ttf-roboto --noconfirm 
+        uv sync 
+
+    - name: Run tests 
+      run: |
+        uv run -m pytest

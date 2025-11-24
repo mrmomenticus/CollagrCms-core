@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from src.core.images import ImageService
 
 # Создаем роутер для изображений
-router = APIRouter(prefix="/v1/media", tags=["images"])
+router = APIRouter(prefix="/media", tags=["images"])
 
 
 @router.get("/{image_id}")

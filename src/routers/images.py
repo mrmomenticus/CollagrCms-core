@@ -2,13 +2,12 @@
 """
 
 import logging
+from typing import cast
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from src.core.images import ImageService
-
-# Кастомные исключения удалены — используем стандартные HTTPException
 
 # Создаем роутер для изображений
 router = APIRouter(prefix="/v1/media", tags=["images"])
@@ -24,19 +23,23 @@ async def get_image(image_id: int):
     Returns:
         Файл изображения
 
+    Raises:
+        HTTPException: 500 - Ошибка получения изображения
+
     """
-    logging.info("API запрос: получение файла изображения ID %s", image_id)
+    log = logging.getLogger(__name__)
+    log.info("API запрос: получение файла изображения ID %s", image_id)
     try:
         image = await ImageService.get_image_by_id(image_id)
 
-        logging.info(f"API ответ: возвращен файл изображения {image.path}")
+        log.info("API ответ: возвращен файл изображения %s", image.path)
         return FileResponse(image.path, media_type="image/jpeg")
 
     except HTTPException as e:
-        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
         raise e
     except Exception as e:
-        logging.exception("API ошибка при получении изображения %s: %s", image_id, e)
+        log.exception("API ошибка при получении изображения %s: %s", image_id, e)
         raise HTTPException(
             status_code=500, detail="Ошибка получения изображения",
         ) from e
@@ -53,15 +56,20 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
     Returns:
         Сообщение об успешном обновлении
 
+    Raises:
+        HTTPException: 404 - Изображение не найдено
+        HTTPException: 500 - Ошибка обновления изображения
+
     """
-    logging.info("API запрос: обновление изображения ID %s", image_id)
+    log = logging.getLogger(__name__)
+    log.info("API запрос: обновление изображения ID %s", image_id)
     try:
         # Получаем существующее изображение для определения категории
         existing_images = await ImageService.get_images_by_ids(
             list_id_images=[image_id],
         )
         if not existing_images:
-            logging.warning("Изображение с ID %s не найдено", image_id)
+            log.warning("Изображение с ID %s не найдено", image_id)
             raise HTTPException(
                 status_code=404, detail=f"Изображение с ID {image_id} не найдено",
             )
@@ -76,14 +84,14 @@ async def update_image(image_id: int, image: UploadFile = File(...)):  # noqa: B
         # Обновляем изображение
         await ImageService.update_image(image_id, image, category_name)
 
-        logging.info("API ответ: изображение обновлено")
+        log.info("API ответ: изображение обновлено")
         return {"message": "Изображение обновлено"}
 
     except HTTPException as e:
-        logging.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
         raise e
     except Exception as e:
-        logging.exception("API ошибка при обновлении изображения %s: %s", image_id, e)
+        log.exception("API ошибка при обновлении изображения %s: %s", image_id, e)
         raise HTTPException(
             status_code=500, detail="Ошибка обновления изображения",
         ) from e

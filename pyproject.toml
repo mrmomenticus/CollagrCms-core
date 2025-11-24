@@ -18,8 +18,8 @@ dependencies = [
     "uvicorn>=0.34.3",
 ]
 
-[tool.setuptools.packages]
-packages = ["src"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 
 [tool.ruff]

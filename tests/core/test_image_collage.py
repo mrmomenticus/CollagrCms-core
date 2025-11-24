@@ -28,7 +28,7 @@ def create_test_image(
 
 @pytest.mark.parametrize("output_path", ["test_collage_output.jpg"])
 def test_collage_creation_9_images(output_path):
-    """Тест создания коллажа с 9 изображениями (3x3) в формате A3 (горизонтальный)"""
+    """Тест создания коллажа с 9 изображениями (3x3)"""
     images = [
         create_test_image(
             1,
@@ -74,18 +74,41 @@ def test_collage_creation_9_images(output_path):
     result_path = creator.create(images, output_path, is_price=True)
     assert pathlib.Path(result_path).exists()
 
-    # Проверяем размеры A3 (горизонтальный)
+    # Проверяем размеры
     with Image.open(result_path) as img:
         assert img.size == (2716, 2716), (
-            f"Размер должен быть A3 (горизонтальный) (4961x3508), получен: {img.size}"
+            f"Размер должен быть (2716, 2716), получен: {img.size}"
         )
 
     pathlib.Path(result_path).unlink()
 
 
-@pytest.mark.parametrize("image_count", list(range(1, 13)))
+@pytest.mark.parametrize("output_path", ["test_collage_no_price.jpg"])
+def test_collage_creation_without_price(output_path):
+    """Тест создания коллажа без цен (is_price=False)"""
+    images = [
+        create_test_image(1, "Товар 1", "Тест", 1000, "Описание 1"),
+        create_test_image(2, "Товар 2", "Тест", 2000, "Описание 2"),
+        create_test_image(3, "Товар 3", "Тест", 3000, "Описание 3"),
+        create_test_image(4, "Товар 4", "Тест", 4000, "Описание 4"),
+    ]
+    creator = CollageCreator()
+    result_path = creator.create(images, output_path, is_price=False)
+    assert pathlib.Path(result_path).exists()
+
+    # Проверяем размеры (2x2)
+    with Image.open(result_path) as img:
+        expected_size = (2 * 900 + 1 * 8, 2 * 900 + 1 * 8)  # 1808x1808
+        assert img.size == expected_size, (
+            f"Размер должен быть {expected_size}, получен: {img.size}"
+        )
+
+    pathlib.Path(result_path).unlink()
+
+
+@pytest.mark.parametrize("image_count", list(range(1, 17)))
 def test_collage_creation_dynamic_sizes(image_count):
-    """Тест создания коллажей с разным количеством изображений (1-12), проверка размеров холста"""
+    """Тест создания коллажей с разным количеством изображений (1-16), проверка размеров холста"""
     images = [
         create_test_image(
             i + 1, f"Товар {i + 1}", "Тест", 1000 + i * 100, f"Описание товара {i + 1}",
@@ -109,29 +132,29 @@ def test_collage_creation_dynamic_sizes(image_count):
 
 
 def test_grid_calculation_new():
-    """Тест расчета размеров сетки для разного количества изображений (1-12)"""
+    """Тест расчета размеров сетки для разного количества изображений (1-16)"""
     creator = CollageCreator()
-    for image_count in range(1, 13):
+    for image_count in range(1, 17):
         cols, rows = creator._calculate_grid_dimensions(image_count)
         assert cols * rows >= image_count
-        assert abs(cols - rows) <= image_count  # сетка максимально квадратная
+        assert abs(cols - rows) <= 1  # сетка максимально квадратная
 
 
 def test_invalid_image_count():
-    """Тест обработки некорректного количества изображений (0 и >12)"""
+    """Тест обработки некорректного количества изображений (0 и >16)"""
     creator = CollageCreator()
     with pytest.raises(ValueError, match="Количество изображений должно быть больше 0"):
         creator._calculate_grid_dimensions(0)
     with pytest.raises(
-        ValueError, match="Количество изображений должно быть от 1 до 12",
+        ValueError, match="Количество изображений должно быть от 1 до 16",
     ):
         creator.create([], "test.jpg", is_price=True)
     images = [
         create_test_image(i, f"Товар {i}", "Тест", 10, f"Описание {i}")
-        for i in range(1, 14)
+        for i in range(1, 18)
     ]
     with pytest.raises(
-        ValueError, match="Количество изображений должно быть от 1 до 12",
+        ValueError, match="Количество изображений должно быть от 1 до 16",
     ):
         creator.create(images, "test.jpg", is_price=True)
 

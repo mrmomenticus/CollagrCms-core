@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 
 from fastapi import APIRouter, HTTPException, status
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
@@ -15,23 +16,23 @@ log = logging.getLogger(__name__)
 async def get_categories(is_only_active: bool = True) -> list[Category]:
     """Возвращает все категории.
 
-    Raises:
-        HTTPException: 404 - Не удалось найти нужную категорию.
+    Args:
+        is_only_active: Фильтровать только активные категории
 
     Returns:
         Список всех категорий.
 
     """
-    log.info("API запрос: получение всех категорий")
+    log.info("API запрос: получение всех категорий, is_only_active=%s", is_only_active)
     try:
         categories = await CategoryService.get_all_categories(is_only_active)
-        log.info(f"API ответ: возвращено {len(categories)} категорий")
+        log.info("API ответ: возвращено %d категорий", len(categories))
         return categories
     except Exception as e:
         log.exception("API ошибка при получении категорий: %s", e)
         raise HTTPException(
             status_code=HTTP_404_NOT_FOUND,
-            detail="Ошибка получения категорий",
+            detail="Категории не найдены",
         ) from e
 
 
@@ -45,17 +46,20 @@ async def get_category(category_id: int) -> Category:
     Returns:
         Модель бд найденной категории.
 
+    Raises:
+        HTTPException: 404 - Категория не найдена
+
     """
     log.info("API запрос: получение категории по ID %s", category_id)
     try:
         category = await CategoryService.get_category_by_id(category_id)
-        log.info(f"API ответ: возвращена категория {category.name}")
+        log.info("API ответ: возвращена категория %s", category.name)
         return category
-    except HTTPException as e:
+    except Exception as e:
         log.error("API ошибка при получении категории %s: %s", category_id, e)
         raise HTTPException(
             status_code=HTTP_404_NOT_FOUND,
-            detail="Ошибка получения категории",
+            detail="Категория не найдена",
         ) from e
 
 
@@ -69,17 +73,20 @@ async def create_category(request: CategoryCreateRequest) -> Category:
     Returns:
         Созданная категория.
 
+    Raises:
+        HTTPException: 400 - Ошибка при создании категории
+
     """
-    log.info(f"API запрос: создание категории {request.name}")
+    log.info("API запрос: создание категории %s", request.name)
     try:
         category = await CategoryService.create_category(
             request.name,
             request.description,
         )
-        log.info(f"API ответ: категория создана {category.name} (ID: {category.id})")
+        log.info("API ответ: категория создана %s (ID: %d)", category.name, category.id)
         return category
     except Exception as e:
-        log.error(f"API ошибка при создании категории {request.name}: {e}")
+        log.error("API ошибка при создании категории %s: %s", request.name, e)
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
             detail="Ошибка создания категории",
@@ -100,14 +107,17 @@ async def update_category(
     Returns:
         Обновленная категория
 
+    Raises:
+        HTTPException: 400 - Ошибка при обновлении категории
+
     """
     log.info("API запрос: обновление категории ID %s", category_id)
     try:
         category = await CategoryService.update_category(category_id, request)
-        log.info(f"API ответ: категория обновлена {category.name}")
+        log.info("API ответ: категория обновлена %s", category.name)
         return category
     except Exception as e:
-        log.exception(f"API ошибка при обновлении категории {category_id}")
+        log.exception("API ошибка при обновлении категории %s", category_id)
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
             detail="Ошибка обновления категории.",
@@ -128,13 +138,20 @@ async def delete_category(
     Returns:
         Сообщение об успешном удалении
 
+    Raises:
+        HTTPException: 500 - Ошибка удаления категории
+
     """
-    log.info("API запрос: мягкое удаление категории ID %s", category_id)
+    delete_type = "жесткое" if hard_delete else "мягкое"
+    log.info("API запрос: %s удаление категории ID %s", delete_type, category_id)
     try:
         name_category = await CategoryService.delete_category(category_id, hard_delete)
         if hard_delete:
-            return {"message": f"Категория: {name_category} удалена"}
-        return {"message": "Категория успешно удалена"}
+            message = f"Категория: {name_category} удалена"
+        else:
+            message = "Категория успешно деактивирована"
+        log.info("API ответ: %s", message)
+        return {"message": message}
     except Exception as e:
-        log.exception(f"API ошибка при удалении категории {category_id}")
+        log.exception("API ошибка при удалении категории %s", category_id)
         raise HTTPException(status_code=500, detail="Ошибка удаления категории") from e

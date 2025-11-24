@@ -10,7 +10,7 @@ router = APIRouter(prefix="/v1/collage", tags=["collages"])
 log = logging.getLogger(__name__)
 
 
-@router.get("/")
+@router.post("/")
 async def create_collage(
     list_id: list[int] = Query(..., min_length=1, max_length=16),  # noqa: B008
     is_price: bool = True,
@@ -24,19 +24,25 @@ async def create_collage(
     Returns:
         Файл коллажа в формате JPEG
 
+    Raises:
+        HTTPException: 422 - Неверное количество изображений
+        HTTPException: 500 - Ошибка создания коллажа
+
     """
-    if len(list_id) < 1 or len(list_id) > 16:
+    if not (1 <= len(list_id) <= 16):
         error_msg = (
             f"Количество изображений должно быть от 1 до 16, получено: {len(list_id)}"
         )
         log.warning(error_msg)
         raise HTTPException(status_code=422, detail=error_msg)
+
     try:
         collage_path = await CollageService.create_collage_by_ids(
             list_id,
             "collage.jpg",
             is_price,
         )
+        log.info("API ответ: коллаж создан по пути %s", collage_path)
         return FileResponse(
             collage_path,
             media_type="image/jpeg",
@@ -47,31 +53,39 @@ async def create_collage(
         raise HTTPException(status_code=500, detail="Ошибка создания коллажа") from e
 
 
-@router.get("/select-all/", response_model=CollageInfoResponse)
+@router.get("/", response_model=CollageInfoResponse)
 async def get_all_product_for_collage() -> CollageInfoResponse:
     """Возвращает все доступные товары для создания коллажей.
 
     Returns:
         JSON с информацией о всех товарах и возможностях создания коллажей
 
+    Raises:
+        HTTPException: 500 - Ошибка получения продуктов
+        HTTPException: 404 - Продукты не найдены
+
     """
+    log.info("API запрос: получение всех продуктов для коллажа")
     try:
         result = await CollageService.get_all_products_info()
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail="Товары не найдены",
+            )
+        log.info("API ответ: получена информация о %d продуктах", result.total_images)
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
-        log.exception(f"API ошибка при получении всех продуктов: {e}")
+        log.exception("API ошибка при получении всех продуктов: %s", e)
         raise HTTPException(
             status_code=500,
-            detail="Error getting all products",
+            detail="Ошибка получения всех продуктов",
         ) from e
-    if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="No products found",
-        )
-    return result
 
 
-@router.get(f"/categories/", response_model=CollageInfoResponse)
+@router.get("/categories/", response_model=CollageInfoResponse)
 async def get_products_by_categories(category_names: list[str]) -> CollageInfoResponse:
     """Возвращает товары по заданным категориям для создания коллажей.
 
@@ -81,16 +95,24 @@ async def get_products_by_categories(category_names: list[str]) -> CollageInfoRe
     Returns:
         JSON с информацией о товарах и возможностях создания коллажей
 
+    Raises:
+        HTTPException: 500 - Ошибка получения продуктов по категориям
+
     """
+    log.info("API запрос: получение продуктов по категориям %s", category_names)
     try:
         result = await CollageService.get_products_by_categories(category_names)
+        log.info(
+            "API ответ: получена информация о %d продуктах по категориям",
+            result.total_images,
+        )
+        return result
     except Exception as e:
         log.exception("API ошибка при получении продуктов по категориям: %s", e)
         raise HTTPException(
             status_code=500,
-            detail="Error getting products by categories",
+            detail="Ошибка получения продуктов по категориям",
         ) from e
-    return result
 
 
 @router.get("/batch/")
@@ -101,31 +123,23 @@ async def create_batch_collage(
     category_names: list[str] | None = None,
 ):
     """Создает коллаж из текущего пакета товаров (по умолчанию 16 штук)
-    Используется для кнопки "Дальше" - создает следующий коллаж и сразу отправляет его пользователю
-
+    Используется для кнопки "Дальше" - создает следующий коллаж и сразу отправляет его пользователю.
     Args:
         batch_size: Размер пакета (по умолчанию 16)
         start_index: Начальный индекс для обработки
         is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
         category_names: Список названий категорий для фильтрации.
-
     Returns:
         Файл коллажа для скачивания
-
-    """
-    if category_names:
-        log.info(
-            "API запрос: создание коллажа пакета по категориям %s (размер: %s, индекс: %s)",
-            category_names,
-            batch_size,
-            start_index,
-        )
-    else:
-        log.info(
-            "API запрос: создание коллажа пакета (размер: %s, индекс: %s)",
-            batch_size,
-            start_index,
-        )
+    Raises:
+        HTTPException: 500 - Ошибка создания коллажа пакета.
+    """  # noqa: D205
+    log.info(
+        "API запрос: создание коллажа пакета (размер: %d, индекс: %d, категория: %s)",
+        batch_size,
+        start_index,
+        category_names if category_names else "all",
+    )
     try:
         collage_path, batch_info = await CollageService.create_batch_collage(
             batch_size,
@@ -157,11 +171,11 @@ async def create_batch_collage(
             },
         )
 
-        log.info(f"API ответ: коллаж пакета создан {batch_info['filename']}")
+        log.info("API ответ: коллаж пакета создан %s", batch_info["filename"])
         return response
 
     except HTTPException as e:
-        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
         raise e
     except Exception as e:
         log.exception("API ошибка при создании коллажа пакета: %s", e)
@@ -186,28 +200,24 @@ async def create_all_collage_info(
     Returns:
         JSON с информацией о всех созданных коллажах
 
+    Raises:
+        HTTPException: 404 - Товары не найдены
+        HTTPException: 500 - Ошибка получения информации о всех коллажах
+
     """
-    if category_names:
-        try:
-            result = await CollageService.get_products_by_categories(category_names)
-        except Exception as e:
-            log.exception("API ошибка при получении продуктов по категориям: %s", e)
-            raise HTTPException(
-                status_code=500,
-                detail="Ошибка получения продуктов по категориям",
-            ) from e
-    else:
-        try:
-            result = await CollageService.get_all_products_info()
-        except Exception as e:
-            log.exception("API ошибка при получении всех продуктов: %s", e)
-            raise HTTPException(
-                status_code=500,
-                detail="Ошибка получения всех продуктов",
-            ) from e
+    log.info(
+        "API запрос: получение информации о создании всех коллажей (размер пакета: %d, категории: %s)",
+        batch_size,
+        category_names if category_names else "all",
+    )
 
     try:
-        if not result.has_images:
+        if category_names:
+            result = await CollageService.get_products_by_categories(category_names)
+        else:
+            result = await CollageService.get_all_products_info()
+
+        if not result or not result.has_images:
             log.warning("Товары не найдены для создания коллажей")
             raise HTTPException(status_code=404, detail="Товары не найдены")
 
@@ -221,7 +231,8 @@ async def create_all_collage_info(
         }
 
         log.info(
-            f"API ответ: информация о создании {creation_info['total_batches']} коллажей",
+            "API ответ: информация о создании %d коллажей",
+            creation_info["total_batches"],
         )
         return creation_info
 
@@ -255,18 +266,15 @@ async def create_and_dowload_all_collages(
     Returns:
         ZIP-архив со всеми созданными коллажами
 
+    Raises:
+        HTTPException: 500 - Ошибка создания и скачивания всех коллажей
+
     """
-    if category_names:
-        log.info(
-            "API запрос: создание и скачивание всех коллажей по категориям %s (размер пакета: %s)",
-            category_names,
-            batch_size,
-        )
-    else:
-        log.info(
-            "API запрос: создание и скачивание всех коллажей (размер пакета: %s)",
-            batch_size,
-        )
+    log.info(
+        "API запрос: создание и скачивание всех коллажей (размер пакета: %d, категории: %s)",
+        batch_size,
+        category_names if category_names else "all",
+    )
     try:
         zip_path, creation_info = await CollageService.create_all_collages_zip(
             batch_size,
@@ -292,12 +300,13 @@ async def create_and_dowload_all_collages(
         )
 
         log.info(
-            f"API ответ: ZIP-архив с коллажами создан {creation_info['zip_filename']}",
+            "API ответ: ZIP-архив с коллажами создан %s",
+            creation_info["zip_filename"],
         )
         return response
 
     except HTTPException as e:
-        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
         raise e
     except Exception as e:
         log.exception("API ошибка при создании и скачивании всех коллажей: %s", e)
@@ -322,33 +331,24 @@ async def get_batch_processing_status(
     Returns:
         JSON с информацией о статусе
 
-    """
-    if category_names:
-        log.info(
-            "API запрос: получение статуса пакетной обработки для категорий %s",
-            category_names,
-        )
-        try:
-            result = await CollageService.get_batch_processing_status(category_names)
-        except Exception as e:
-            log.exception("API ошибка при получении статуса для категорий: %s", e)
-            raise HTTPException(
-                status_code=500,
-                detail="Ошибка получения статуса для категорий",
-            ) from e
-    else:
-        log.info("API запрос: получение статуса пакетной обработки")
-        try:
-            result = await CollageService.get_batch_processing_status()
-        except Exception as e:
-            log.exception("API ошибка при получении общего статуса: %s", e)
-            raise HTTPException(
-                status_code=500,
-                detail="Ошибка получения общего статуса",
-            ) from e
+    Raises:
+        HTTPException: 500 - Ошибка получения статуса
 
-    log.info(f"API ответ: статус получен ({result.total_images} товаров)")
-    return result
+    """
+    log.info(
+        "API запрос: получение статуса пакетной обработки (категории: %s)",
+        category_names if category_names else "all",
+    )
+    try:
+        result = await CollageService.get_batch_processing_status(category_names)
+        log.info("API ответ: статус получен (%d товаров)", result.total_images)
+        return result
+    except Exception as e:
+        log.exception("API ошибка при получении статуса пакетной обработки: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка получения статуса пакетной обработки",
+        ) from e
 
 
 @router.get("/batch/info/")
@@ -371,20 +371,16 @@ async def get_batch_info(
     Returns:
         JSON с информацией о текущем пакете
 
+    Raises:
+        HTTPException: 500 - Ошибка получения информации о пакете
+
     """
-    if category_names:
-        log.info(
-            "API запрос: получение информации о пакете по категориям %s (индекс: %s, размер: %s)",
-            category_names,
-            start_index,
-            batch_size,
-        )
-    else:
-        log.info(
-            "API запрос: получение информации о пакете (индекс: %s, размер: %s)",
-            start_index,
-            batch_size,
-        )
+    log.info(
+        "API запрос: получение информации о пакете (индекс: %d, размер: %d, категории: %s)",
+        start_index,
+        batch_size,
+        category_names if category_names else "all",
+    )
     try:
         result = await CollageService.get_batch_info(
             start_index,
@@ -393,12 +389,14 @@ async def get_batch_info(
         )
 
         log.info(
-            f"API ответ: информация о пакете {result['current_batch']}/{result['total_batches']}",
+            "API ответ: информация о пакете %d/%d",
+            result["current_batch"],
+            result["total_batches"],
         )
         return result
 
     except HTTPException as e:
-        log.warning(f"API ошибка: {getattr(e, 'detail', str(e))}")
+        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
         raise e
     except Exception as e:
         log.exception("API ошибка при получении информации о пакете: %s", e)
@@ -415,12 +413,15 @@ async def cleanup_temp_files():
     Returns:
         JSON с результатом очистки
 
+    Raises:
+        HTTPException: 500 - Ошибка очистки временных файлов
+
     """
     log.info("API запрос: очистка временных файлов")
     try:
         result = CollageService.cleanup_temp_files()
 
-        log.info(f"API ответ: очищено {result['total_cleaned']} элементов")
+        log.info("API ответ: очищено %d элементов", result["total_cleaned"])
         return result
 
     except Exception as e:

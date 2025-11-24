@@ -75,7 +75,7 @@ class CollageCreator:
         """Создает коллаж из переданных изображений, все изображения 900x900, холст минимального размера.
 
         Args:
-            image_models: Список изображений с продуктами (от 1 до 12)
+            image_models: Список изображений с продуктами (от 1 до 16)
             output_path: Путь для сохранения коллажа
             is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
         Returns:
@@ -85,7 +85,7 @@ class CollageCreator:
         image_count = len(image_models)
         if image_count < 1 or image_count > 16:
             raise ValueError(
-                f"Количество изображений должно быть от 1 до 12, получено: {image_count}",
+                f"Количество изображений должно быть от 1 до 16, получено: {image_count}",
             )
         # Рассчитываем размеры сетки
         grid_cols, grid_rows = self._calculate_grid_dimensions(image_count)

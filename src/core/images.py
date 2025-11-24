@@ -61,7 +61,7 @@ class ImageService:
             raise
 
     @staticmethod
-    async def get_all_images_with_products() -> list[ImagesDb] | None:
+    async def get_all_images_with_products() -> list[ImagesDb]:
         """Получает все изображения с информацией о продуктах.
 
         Returns:

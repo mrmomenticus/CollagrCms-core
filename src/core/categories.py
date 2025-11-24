@@ -10,7 +10,6 @@ from src.database.repository.categories import CategoryRepository
 from src.database.repository.products import ProductRepository
 from src.database.schema.products import ProductDb
 from src.models.models import Category, CategoryUpdateRequest
-from src.utils.exceptions import NotFoundError
 from src.utils.file import delete_file
 
 log = logging.getLogger(__name__)
@@ -217,7 +216,7 @@ class CategoryService:
             raise
 
     @staticmethod
-    async def delete_category(category_id: int, hard_delete: bool = False) -> str:
+    async def delete_category(category_id: int, hard_delete: bool = False) -> str | None:
         """Удаляет категорию (мягкое или жесткое удаление).
 
         Args:
@@ -235,7 +234,7 @@ class CategoryService:
         existing_category = await CategoryRepository.get_by_id(category_id)
         if not existing_category:
             log.warning(f"Категория с ID {category_id} не найдена")
-            raise NotFoundError(f"Не найдена категория {category_id}")
+            return None
         # Находим продукты, у которых только эта категория
         products_to_delete = []
         async with db.get_session() as session:

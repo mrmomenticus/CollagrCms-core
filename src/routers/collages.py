@@ -149,10 +149,12 @@ async def create_batch_collage(
         )
 
         # Отправляем файл пользователю для скачивания
+        # Убедимся, что имя файла не содержит кириллических символов
+        safe_filename = batch_info["filename"].encode('utf-8').decode('utf-8', errors='ignore')
         response = FileResponse(
             collage_path,
             media_type="image/jpeg",
-            filename=batch_info["filename"],
+            filename=safe_filename,
             headers={
                 "X-Collage-Batch": str(batch_info["batch_number"]),
                 "X-Collage-Total-Batches": str(batch_info["total_batches"]),
@@ -163,7 +165,8 @@ async def create_batch_collage(
                 "X-Collage-Has-More": str(batch_info["has_more"]),
                 "X-Collage-Next-Start-Index": str(batch_info["next_start_index"]),
                 # Добавляем информацию о категориях в заголовки, если они указаны
-                "X-Collage-Categories": str(category_names)
+                # Избегаем кириллицы в заголовках, кодируем в ASCII
+                "X-Collage-Categories": str(len(category_names)) + "_categories"
                 if category_names
                 else "all",
                 # Убираем кириллицу из заголовков
@@ -283,19 +286,21 @@ async def create_and_dowload_all_collages(
         )
 
         # Отправляем ZIP-файл пользователю
+        # Убедимся, что имя файла не содержит кириллических символов
+        safe_filename = creation_info["zip_filename"].encode('utf-8').decode('utf-8', errors='ignore')
         response = FileResponse(
             zip_path,
             media_type="application/zip",
-            filename=creation_info["zip_filename"],
+            filename=safe_filename,
             headers={
                 "X-Collage-Total-Batches": str(creation_info["total_batches"]),
                 "X-Collage-Total-Images": str(creation_info["total_images"]),
                 "X-Collage-Batch-Size": str(creation_info["batch_size"]),
-                "X-Collage-Categories": str(category_names)
+                "X-Collage-Categories": str(len(category_names)) + "_categories"
                 if category_names
                 else "all",
                 # Убираем кириллицу из заголовков, чтобы избежать проблем с кодировкой
-                "X-Collage-Message": f"Created {creation_info['total_batches']} collages from {creation_info['total_images']} images in categories {creation_info['categories']}",
+                "X-Collage-Message": f"Created {creation_info['total_batches']} collages from {creation_info['total_images']} images",
             },
         )
 

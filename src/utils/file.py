@@ -15,13 +15,13 @@ async def create_uuid(filename: str) -> str:
 async def create_path(filename: str, tag: str) -> str:
     # Используем "default" если tag пустой или содержит только пробелы
     safe_tag = tag.strip() if tag and tag.strip() else "default"
-    return os.path.join(f"{pathlib.Path.cwd()}/files/{safe_tag}", filename)
+    return os.path.join(f"{pathlib.Path.cwd()}/../files/{safe_tag}", filename)
 
 
 async def created_file(image: UploadFile, file_path: str, tag: str):
     # Используем "default" если tag пустой или содержит только пробелы
     safe_tag = tag.strip() if tag and tag.strip() else "default"
-    dir_path = f"files/{safe_tag}"
+    dir_path = f"../files/{safe_tag}"
     if not pathlib.Path(dir_path).exists():
         pathlib.Path(dir_path).mkdir(parents=True)
     with pathlib.Path(file_path).open("wb") as buffer:

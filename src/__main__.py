@@ -59,6 +59,7 @@ async def shutdown_event():
 if __name__ == "__main__":
     # Запуск через uvicorn
     server_config = config.get_server_config()
+    LoggerConfigurator().configure()
     uvicorn.run(
         "src.__main__:app",
         host=server_config.get("host", "0.0.0.0"),

@@ -4,7 +4,11 @@ import math
 from PIL import Image, ImageDraw
 
 from src.core.overlay import Overlay
-from src.models.models import ImageWithProduct
+from src.models.models import (
+    CollageLayout,
+    CollageSettings,
+    ImageWithProduct,
+)
 
 log = logging.getLogger(__name__)
 
@@ -136,5 +140,156 @@ class CollageCreator:
             grid_cols,
             grid_rows,
             image_count,
+        )
+        return output_path
+
+    def create_with_layout(
+        self,
+        image_models: list[ImageWithProduct],
+        layout: CollageLayout,
+        settings: CollageSettings,
+        output_path: str,
+    ) -> str:
+        """Создает коллаж с пользовательским макетом.
+
+        Args:
+            image_models: Список изображений с продуктами
+            layout: Макет коллажа с ячейками
+            settings: Настройки отображения
+            output_path: Путь для сохранения коллажа
+
+        Returns:
+            Путь к созданному коллажу
+
+        """
+        image_count = len(image_models)
+        if image_count < 1 or image_count > 16:
+            raise ValueError(
+                f"Количество изображений должно быть от 1 до 16, получено: {image_count}",
+            )
+
+        # Получаем размеры холста из макета
+        canvas_width = layout.canvas.width
+        canvas_height = layout.canvas.height
+
+        # Создаем изображение
+        collage = Image.new(
+            "RGB",
+            (canvas_width, canvas_height),
+            self._background_color,
+        )
+        draw = ImageDraw.Draw(collage)
+
+        # Рисуем рамку
+        for i in range(self._border_thickness):
+            draw.rectangle(
+                [(i, i), (canvas_width - 1 - i, canvas_height - 1 - i)],
+                outline=self._border_color,
+            )
+
+        # Создаем словарь изображений по ID для быстрого доступа
+        images_by_id = {img.id: img for img in image_models}
+
+        # Обрабатываем ячейки макета
+        for cell in layout.cells:
+            try:
+                if cell.type == "image":
+                    # Находим изображение по productId или по индексу ячейки
+                    img_model = None
+                    if cell.product_id:
+                        # Ищем по productId
+                        img_model = images_by_id.get(cell.product_id)
+                    elif cell.index < len(image_models):
+                        # Ищем по индексу
+                        img_model = image_models[cell.index]
+                    
+                    if img_model:
+                        img = Image.open(img_model.path)
+
+                        # Масштабируем изображение под размер ячейки
+                        cell_width = int(cell.size.width)
+                        cell_height = int(cell.size.height)
+                        img = img.resize((cell_width, cell_height), Image.Resampling.LANCZOS)
+
+                        # Поворачиваем изображение
+                        if cell.rotation != 0:
+                            img = img.rotate(cell.rotation, expand=True, resample=Image.Resampling.BICUBIC)
+
+                        # Создаем оверлей для ячейки
+                        overlay = Overlay(cell_width, cell_height)
+                        img = overlay.add_text_overlay(
+                            img,
+                            img_model,
+                            (0, 0, cell_width, cell_height),
+                            settings.is_price,
+                        )
+
+                        # Вставляем изображение на холст
+                        x = int(cell.position.x)
+                        y = int(cell.position.y)
+                        collage.paste(img, (x, y))
+
+                elif cell.type == "text":
+                    # Рисуем текстовую ячейку
+                    if cell.text_config:
+                        text_type = cell.text_config.type
+                        font_size = cell.text_config.font_size
+                        color = cell.text_config.color
+
+                        # Получаем текст для отображения
+                        text = ""
+                        img_model = None
+                        if cell.product_id:
+                            # Ищем по productId
+                            img_model = images_by_id.get(cell.product_id)
+                        elif cell.index < len(image_models):
+                            # Ищем по индексу
+                            img_model = image_models[cell.index]
+                        
+                        if img_model:
+                            if text_type == "price" and settings.is_price:
+                                text = f"{img_model.product.price} ₽"
+                            elif text_type == "name" and settings.is_name:
+                                text = img_model.product.name
+                            elif text_type == "category" and settings.is_category:
+                                text = ", ".join(img_model.product.category_names)
+                            elif text_type == "description" and settings.is_description:
+                                text = img_model.product.description
+
+                        if text:
+                            # Рисуем текст
+                            from PIL import ImageFont
+                            try:
+                                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
+                            except Exception:
+                                font = ImageFont.load_default()
+
+                            # Вычисляем размер текста для центрирования
+                            bbox = draw.textbbox((0, 0), text, font=font)
+                            text_width = bbox[2] - bbox[0]
+                            text_height = bbox[3] - bbox[1]
+                            
+                            # Центрируем текст в ячейке
+                            x = int(cell.position.x) + (int(cell.size.width) - text_width) // 2
+                            y = int(cell.position.y) + (int(cell.size.height) - text_height) // 2
+
+                            draw.text(
+                                (x, y),
+                                text,
+                                fill=color,
+                                font=font,
+                            )
+
+            except Exception as e:
+                log.exception(f"Ошибка при обработке ячейки {cell.id}: {e}")
+                raise
+
+        collage.save(output_path, "JPEG", quality=95)
+        log.info(
+            "Коллаж с макетом сохранён в %s (размер: %sx%s, ячеек: %s)",
+            output_path,
+            canvas_width,
+            canvas_height,
+            len(layout.cells),
         )
         return output_path

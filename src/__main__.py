@@ -3,7 +3,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.routers.collages import router as collages_router
-from src.routers.images import router as images_router
 from src.utils.config import config
 from src.utils.logs import LoggerConfigurator
 
@@ -25,13 +24,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роутеры для коллажей и изображений
+# Подключаем роутер для коллажей
 app.include_router(collages_router)
-app.include_router(images_router)
 
 
 @app.on_event("startup")
-async def startup_event():
+def startup_event() -> None:
+    """Настройка логирования при запуске приложения."""
     LoggerConfigurator().configure()
 
 

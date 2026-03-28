@@ -1,6 +1,5 @@
-import logging
 import os
-from typing import Any
+from typing import Any, Self
 
 from dotenv import load_dotenv
 
@@ -8,7 +7,7 @@ from dotenv import load_dotenv
 class Config:
     _instance = None
 
-    def __new__(cls):
+    def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -21,18 +20,8 @@ class Config:
     def get_config(self) -> dict[str, Any]:
         # Return a dictionary with all configuration values
         return {
-            "database": self.get_database_config(),
             "server": self.get_server_config(),
             "logger": self.get_logger_config(),
-        }
-
-    def get_database_config(self) -> dict[str, Any]:
-        return {
-            "user": os.getenv("DB_USER", "postgres"),
-            "password": os.getenv("DB_PASSWORD", "postgres"),
-            "host": os.getenv("DB_HOST", "localhost"),
-            "port": int(os.getenv("DB_PORT", "5432")),
-            "name": os.getenv("DB_NAME", "collagrcms"),
         }
 
     def get_server_config(self) -> dict[str, Any]:

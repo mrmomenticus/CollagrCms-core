@@ -35,32 +35,6 @@ class ImageWithProduct(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class CategoryCreateRequest(BaseModel):
-    name: str = Field(
-        ...,
-        min_length=1,
-        max_length=255,
-        description="Название категории (обязательное, от 1 до 255 символов)",
-    )
-    description: str | None = Field(
-        None, max_length=1000, description="Описание категории (до 1000 символов)",
-    )
-    is_active: bool = Field(True, description="Статус активности категории")
-
-
-class CategoryUpdateRequest(BaseModel):
-    name: str | None = Field(
-        None,
-        min_length=1,
-        max_length=255,
-        description="Название категории (от 1 до 255 символов)",
-    )
-    description: str | None = Field(
-        None, max_length=1000, description="Описание категории (до 1000 символов)",
-    )
-    is_active: bool | None = Field(None, description="Статус активности категории")
-
-
 class CollageInfoResponse(BaseModel):
     total_images: int = Field(0, description="Общее количество изображений")
     total_batches: int = Field(0, description="Общее количество пакетов")

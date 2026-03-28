@@ -1,22 +1,18 @@
 [project]
 name = "collagrcms"
 version = "0.1.0"
-description = "Backend service"
+description = "Backend service for collage generation"
 readme = "README.md"
 requires-python = ">=3.13"
 
 dependencies = [
-    "alembic>=1.17.2",
-    "asyncpg>=0.30.0",
     "fastapi>=0.115.12",
     "pillow>=11.2.1",
-    "psycopg2-binary>=2.9.0",
     "pydantic>=2.11.5",
     "pytest>=8.3.5",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.20",
     "pyyml>=0.0.2",
-    "sqlalchemy>=2.0.41",
     "uvicorn>=0.34.3",
 ]
 
@@ -32,5 +28,3 @@ line-length = 88
 select = ["E", "F", "W", "B", "I", "RUF", "N", "LOG", "ERA", "W", "D", "UP", "ANN", "ASYNC", "S", "RET", "TCH", "ARG", "PTH"]
 ignore = ["E501", "RUF002", "RUF003", "D100", "D107", "D101", "RUF001", "D102"]
 fixable = ["ALL"]
-
-

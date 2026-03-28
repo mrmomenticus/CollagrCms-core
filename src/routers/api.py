@@ -4,10 +4,8 @@ import yaml
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.routers.categories import router as categories_router
 from src.routers.collages import router as collages_router
 from src.routers.images import router as images_router
-from src.routers.products import router as products_router
 
 # Создаем основное приложение FastAPI
 
@@ -15,7 +13,7 @@ from src.routers.products import router as products_router
 app = FastAPI(
     title="CollagrCms API",
     version="0.1.0",
-    description="Рефакторированный API для системы управления коллажами",
+    description="API для генерации коллажей",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -29,11 +27,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роутеры для каждого модуля
-app.include_router(categories_router)
-app.include_router(products_router)
-app.include_router(images_router)
+# Подключаем роутеры для коллажей и изображений
 app.include_router(collages_router)
+app.include_router(images_router)
 
 
 with pathlib.Path("docs/openapi.yaml").open("w") as f:

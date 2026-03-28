@@ -2,11 +2,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.database.connection import db
-from src.routers.categories import router as categories_router
 from src.routers.collages import router as collages_router
 from src.routers.images import router as images_router
-from src.routers.products import router as products_router
 from src.utils.config import config
 from src.utils.logs import LoggerConfigurator
 
@@ -14,7 +11,7 @@ from src.utils.logs import LoggerConfigurator
 app = FastAPI(
     title="CollagrCms API",
     version="0.2.0",
-    description="Рефакторированный API для системы управления коллажами",
+    description="API для генерации коллажей",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -28,32 +25,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роутеры для каждого модуля
-app.include_router(categories_router)
-app.include_router(products_router)
-app.include_router(images_router)
+# Подключаем роутеры для коллажей и изображений
 app.include_router(collages_router)
-
-
-def create_url() -> str:
-    db_config = config.get_database_config()
-    return (
-        f"postgresql+asyncpg://{db_config['user']}:{db_config['password']}@"
-        f"{db_config['host']}:{db_config['port']}/{db_config['name']}"
-    )
+app.include_router(images_router)
 
 
 @app.on_event("startup")
 async def startup_event():
     LoggerConfigurator().configure()
-    # Инициализация базы данных
-    await db.connect(create_url())
-    await db.init_database()
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    await db.close()
 
 
 if __name__ == "__main__":

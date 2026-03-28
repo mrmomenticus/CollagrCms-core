@@ -164,20 +164,20 @@ async def generate_collage_from_directus(
         from src.models.models import ImageData
         images = []
         for product in products:
-            product_images = product.get("images", [])
-            for img in product_images:
-                if img.get("path"):
-                    # Формируем URL изображения
-                    image_url = f"{directus_url}/assets/{img['path']}"
-
+            product_files = product.get("product_files", [])
+            for pf in product_files:
+                file_id = pf.get("directus_files_id")
+                if file_id:
+                    # Handle both direct file ID and nested object
+                    file_id_value = file_id.get("id") if isinstance(file_id, dict) else file_id
                     # Получаем категорию
-                    category = product.get("category_id", {})
+                    category = product.get("category", {})
                     categories = [category["name"]] if category and category.get("name") else []
 
                     images.append(
                         ImageData(
-                            id=img["id"],
-                            url=image_url,
+                            id=pf["id"],
+                            url=f"{directus_url}/assets/{file_id_value}",
                             product_id=product["id"],
                             product_name=product.get("name", ""),
                             product_price=product.get("price", 0),

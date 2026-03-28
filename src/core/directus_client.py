@@ -94,14 +94,15 @@ class DirectusClient:
                     "name",
                     "description",
                     "price",
-                    "category_id.id",
-                    "category_id.name",
-                    "category_id.description",
-                    "category_id.is_active",
-                    # Получаем изображения через relation
-                    "images.id",
-                    "images.path",
-                    "images.product_id",
+                    "category.id",
+                    "category.name",
+                    "category.description",
+                    "category.is_active",
+                    # Получаем изображения через product_files relation
+                    "product_files.id",
+                    "product_files.directus_files_id",
+                    "product_files.directus_files_id.id",
+                    "product_files.directus_files_id.filename_disk",
                 ]),
                 # Фильтр только активных продуктов
                 "filter[status][_eq]": "published",
@@ -113,11 +114,11 @@ class DirectusClient:
 
             # Добавляем фильтр по категориям
             if category_ids:
-                params["filter[category_id][_in]"] = ",".join(str(cid) for cid in category_ids)
+                params["filter[category][_in]"] = ",".join(str(cid) for cid in category_ids)
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
-                    f"{self.base_url}/items/products",
+                    f"{self.base_url}/items/product",
                     params=params,
                     headers=self.headers,
                 )

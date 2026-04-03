@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any, Self
 
 from dotenv import load_dotenv
@@ -30,6 +31,18 @@ class Config:
             "port": int(os.getenv("SERVER_PORT", "8000")),
             "debug": os.getenv("DEBUG", "False").lower() in ("true", "1", "yes", "on"),
         }
+
+    def get_directus_url(self) -> str:
+        return os.getenv("DIRECTUS_URL", "http://localhost:8055")
+
+    def get_collage_output_dir(self) -> Path:
+        """Returns the directory path for storing generated collages.
+        
+        Creates the directory if it doesn't exist.
+        """
+        output_dir = Path(os.getenv("COLLAGE_OUTPUT_DIR", "./output"))
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
 
     def get_logger_config(self) -> dict[str, Any]:
         return {

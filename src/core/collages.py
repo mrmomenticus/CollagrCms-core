@@ -1,6 +1,7 @@
 import logging
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 
 import httpx
@@ -15,8 +16,35 @@ from src.models.models import (
     ImageWithProduct,
     Product,
 )
+from src.utils.config import config
 
 log = logging.getLogger(__name__)
+
+
+def _normalize_image_url(url: str) -> str:
+    """Нормализует URL изображения, добавляя базовый URL Directus если нужно.
+
+    Args:
+        url: URL изображения (может быть абсолютным или относительным)
+
+    Returns:
+        Нормализованный абсолютный URL
+    """
+    if not url:
+        return url
+
+    # Если URL уже абсолютный (содержит протокол), возвращаем как есть
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+
+    # Если URL относительный (начинается с /), добавляем базовый URL Directus
+    if url.startswith("/"):
+        directus_url = config.get_directus_url().rstrip("/")
+        return f"{directus_url}{url}"
+
+    # Для других случаев добавляем базовый URL
+    directus_url = config.get_directus_url().rstrip("/")
+    return f"{directus_url}/{url.lstrip('/')}"
 
 
 class CollageService:
@@ -25,7 +53,6 @@ class CollageService:
     @staticmethod
     async def create_collage_from_data(
         images: list[ImageData],
-        filename: str = "collage.jpg",
         is_price: bool = True,
     ) -> str:
         """Создает коллаж из переданных данных об изображениях.
@@ -35,7 +62,6 @@ class CollageService:
 
         Args:
             images: Список данных об изображениях
-            filename: Имя файла коллажа
             is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
 
         Returns:
@@ -55,6 +81,10 @@ class CollageService:
                 detail=error_msg,
             )
 
+        # Генерируем уникальное имя файла
+        unique_filename = f"collage_{uuid.uuid4().hex}.jpg"
+        collage_path = config.get_collage_output_dir() / unique_filename
+
         try:
             # Скачиваем изображения во временную папку
             temp_dir = tempfile.mkdtemp(prefix="collage_images_")
@@ -63,8 +93,11 @@ class CollageService:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 for idx, img_data in enumerate(images, start=1):
                     try:
+                        # Нормализуем URL изображения
+                        image_url = _normalize_image_url(img_data.url)
+
                         # Скачиваем изображение
-                        response = await client.get(img_data.url)
+                        response = await client.get(image_url)
                         response.raise_for_status()
 
                         # Сохраняем во временный файл
@@ -96,14 +129,16 @@ class CollageService:
                         log.debug("Изображение %d скачано: %s", idx, img_data.url)
 
                     except httpx.HTTPError as e:
-                        log.error("Ошибка скачивания изображения %s: %s", img_data.url, e)
+                        log.error(
+                            "Ошибка скачивания изображения %s: %s", img_data.url, e
+                        )
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"Ошибка скачивания изображения {img_data.url}: {e}",
                         ) from e
 
             # Создаем коллаж
-            collage_path = CollageCreator().create(image_models, filename, is_price)
+            CollageCreator().create(image_models, str(collage_path), is_price)
             log.info("Коллаж успешно создан: %s", collage_path)
 
             # Очищаем временные файлы
@@ -113,7 +148,7 @@ class CollageService:
             except Exception as e:
                 log.warning("Не удалось удалить временную папку %s: %s", temp_dir, e)
 
-            return collage_path
+            return str(collage_path)
 
         except HTTPException:
             raise
@@ -129,7 +164,6 @@ class CollageService:
         images: list[ImageData],
         layout: CollageLayout,
         settings: CollageSettings,
-        filename: str = "collage.jpg",
     ) -> str:
         """Создает коллаж с пользовательским макетом.
 
@@ -141,7 +175,6 @@ class CollageService:
             images: Список данных об изображениях
             layout: Макет коллажа с ячейками
             settings: Настройки отображения
-            filename: Имя файла коллажа
 
         Returns:
             Путь к созданному коллажу
@@ -160,6 +193,10 @@ class CollageService:
                 detail=error_msg,
             )
 
+        # Генерируем уникальное имя файла
+        unique_filename = f"collage_{uuid.uuid4().hex}.jpg"
+        collage_path = config.get_collage_output_dir() / unique_filename
+
         try:
             # Скачиваем изображения во временную папку
             temp_dir = tempfile.mkdtemp(prefix="collage_images_")
@@ -168,8 +205,11 @@ class CollageService:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 for idx, img_data in enumerate(images, start=1):
                     try:
+                        # Нормализуем URL изображения
+                        image_url = _normalize_image_url(img_data.url)
+
                         # Скачиваем изображение
-                        response = await client.get(img_data.url)
+                        response = await client.get(image_url)
                         response.raise_for_status()
 
                         # Сохраняем во временный файл
@@ -201,18 +241,20 @@ class CollageService:
                         log.debug("Изображение %d скачано: %s", idx, img_data.url)
 
                     except httpx.HTTPError as e:
-                        log.error("Ошибка скачивания изображения %s: %s", img_data.url, e)
+                        log.error(
+                            "Ошибка скачивания изображения %s: %s", img_data.url, e
+                        )
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"Ошибка скачивания изображения {img_data.url}: {e}",
                         ) from e
 
             # Создаем коллаж с макетом
-            collage_path = CollageCreator().create_with_layout(
+            CollageCreator().create_with_layout(
                 image_models,
                 layout,
                 settings,
-                filename,
+                str(collage_path),
             )
             log.info("Коллаж с макетом успешно создан: %s", collage_path)
 
@@ -223,7 +265,7 @@ class CollageService:
             except Exception as e:
                 log.warning("Не удалось удалить временную папку %s: %s", temp_dir, e)
 
-            return collage_path
+            return str(collage_path)
 
         except HTTPException:
             raise

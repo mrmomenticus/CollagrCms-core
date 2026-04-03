@@ -202,26 +202,45 @@ class CollageCreator:
                     elif cell.index < len(image_models):
                         # Ищем по индексу
                         img_model = image_models[cell.index]
-                    
+
                     if img_model:
                         img = Image.open(img_model.path)
 
                         # Масштабируем изображение под размер ячейки
                         cell_width = int(cell.size.width)
                         cell_height = int(cell.size.height)
-                        img = img.resize((cell_width, cell_height), Image.Resampling.LANCZOS)
+                        img = img.resize(
+                            (cell_width, cell_height), Image.Resampling.LANCZOS
+                        )
 
                         # Поворачиваем изображение
                         if cell.rotation != 0:
-                            img = img.rotate(cell.rotation, expand=True, resample=Image.Resampling.BICUBIC)
+                            img = img.rotate(
+                                cell.rotation,
+                                expand=True,
+                                resample=Image.Resampling.BICUBIC,
+                            )
 
                         # Создаем оверлей для ячейки
                         overlay = Overlay(cell_width, cell_height)
+
+                        # Получаем подписи из ячейки или используем дефолтные
+                        captions = cell.captions if cell.captions else ["price"]
+
+                        # Получаем стиль подписей
+                        caption_style = cell.caption_style
+
+                        # Получаем прозрачность из настроек или ячейки
+                        caption_opacity = settings.caption_opacity
+
                         img = overlay.add_text_overlay(
                             img,
                             img_model,
                             (0, 0, cell_width, cell_height),
                             settings.is_price,
+                            captions,
+                            caption_style,
+                            caption_opacity,
                         )
 
                         # Вставляем изображение на холст
@@ -245,7 +264,7 @@ class CollageCreator:
                         elif cell.index < len(image_models):
                             # Ищем по индексу
                             img_model = image_models[cell.index]
-                        
+
                         if img_model:
                             if text_type == "price" and settings.is_price:
                                 text = f"{img_model.product.price} ₽"
@@ -259,8 +278,12 @@ class CollageCreator:
                         if text:
                             # Рисуем текст
                             from PIL import ImageFont
+
                             try:
-                                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
+                                font = ImageFont.truetype(
+                                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                                    font_size,
+                                )
                             except Exception:
                                 font = ImageFont.load_default()
 
@@ -268,10 +291,16 @@ class CollageCreator:
                             bbox = draw.textbbox((0, 0), text, font=font)
                             text_width = bbox[2] - bbox[0]
                             text_height = bbox[3] - bbox[1]
-                            
+
                             # Центрируем текст в ячейке
-                            x = int(cell.position.x) + (int(cell.size.width) - text_width) // 2
-                            y = int(cell.position.y) + (int(cell.size.height) - text_height) // 2
+                            x = (
+                                int(cell.position.x)
+                                + (int(cell.size.width) - text_width) // 2
+                            )
+                            y = (
+                                int(cell.position.y)
+                                + (int(cell.size.height) - text_height) // 2
+                            )
 
                             draw.text(
                                 (x, y),

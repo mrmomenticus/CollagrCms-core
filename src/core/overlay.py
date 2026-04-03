@@ -11,7 +11,6 @@ class Overlay:
         self._collag_width = collag_width
         self._collag_height = collaw_height
         self._overlay_height_ratio = 0.25  # overlay = 1/4 высоты изображения
-        self._overlay_alpha = 128
         self._text_margin_x = 30
         self._price_color = (30, 30, 30)  # Темнее
         self._desc_color = (20, 20, 20)  # Темнее
@@ -23,6 +22,13 @@ class Overlay:
         self._max_chars_per_line = 25
         self._line_spacing = 2
         self._font = Font()
+
+    def _parse_hex_color(self, hex_color: str) -> tuple:
+        """Парсит hex цвет в RGB tuple."""
+        hex_color = hex_color.lstrip("#")
+        if len(hex_color) == 6:
+            return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+        return (255, 255, 255)
 
     def _find_max_font_size(
         self,
@@ -80,73 +86,151 @@ class Overlay:
     def _get_fonts(self, overlay_height):
         font_path = self._font.get_font()
         price_font_size = max(
-            self._price_font_min, int(overlay_height * self._price_font_overlay_ratio),
+            self._price_font_min,
+            int(overlay_height * self._price_font_overlay_ratio),
         )
         desc_font_size = max(
-            self._desc_font_min, int(overlay_height * self._desc_font_overlay_ratio),
+            self._desc_font_min,
+            int(overlay_height * self._desc_font_overlay_ratio),
         )
         price_font = ImageFont.truetype(font_path, price_font_size)
         desc_font = ImageFont.truetype(font_path, desc_font_size)
         return price_font, desc_font, price_font_size
 
     def add_text_overlay(
-        self, img: Image.Image, img_model: ImageWithProduct, img_box=None, is_price=True,
+        self,
+        img: Image.Image,
+        img_model: ImageWithProduct,
+        img_box=None,
+        is_price: bool = True,
+        captions: list[str] | None = None,
+        caption_style=None,
+        caption_opacity: int = 80,
     ) -> Image.Image:
+        """Добавляет текстовый оверлей на изображение.
+
+        Args:
+            img: Изображение
+            img_model: Модель изображения с продуктом
+            img_box: Box изображения
+            is_price: Добавлять ли цену
+            captions: Список типов подписей ('name', 'description', 'price')
+            caption_style: Объект CaptionStyle с настройками стиля
+            caption_opacity: Прозрачность фона (0-100)
+
+        Returns:
+            Изображение с оверлеем
+        """
         img_with_overlay = img.copy()
         overlay_top, overlay_bottom, overlay_height, width, height = (
             self._get_overlay_box(img.size, img_box)
         )
         margin_x = self._text_margin_x
-        overlay_alpha = self._overlay_alpha
+
+        # Прозрачность фона
+        overlay_alpha = int(255 * caption_opacity / 100)
+
         # Overlay
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
+
+        # Цвет фона из caption_style или белый по умолчанию
+        bg_color_rgb = (255, 255, 255)
+        if caption_style and caption_style.background:
+            bg_color_rgb = self._parse_hex_color(caption_style.background)
+
         draw_overlay.rectangle(
             [(0, overlay_top), (width, overlay_bottom)],
-            fill=(255, 255, 255, overlay_alpha),
+            fill=(*bg_color_rgb, overlay_alpha),
         )
         img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert(
             "RGB",
         )
         draw = ImageDraw.Draw(img_with_overlay)
-        # Fonts
+
+        # Шрифты
         price_font, desc_font, price_font_size = self._get_fonts(overlay_height)
-        # Цена (если is_price=True)
-        price_y = overlay_top + 10
-        if is_price:
-            price_text = str(img_model.product.price) + " ₽"
+
+        # Цвет текста из caption_style или дефолтный
+        text_color = self._price_color
+        if caption_style and caption_style.color:
+            text_color = self._parse_hex_color(caption_style.color)
+
+        # Размер шрифта из caption_style или дефолтный
+        font_size = (
+            caption_style.font_size if caption_style and caption_style.font_size else 13
+        )
+        try:
+            font = ImageFont.truetype(self._font.get_font(), font_size)
+        except Exception:
+            font = ImageFont.load_default()
+
+        # Определяем, какие подписи показывать
+        show_captions = captions if captions is not None else ["price"]
+
+        # Текущая позиция Y для текста
+        text_y = overlay_top + 10
+
+        if "price" in show_captions and is_price:
+            price_text = f"{img_model.product.price} ₽"
             draw.text(
-                (margin_x, price_y),
+                (margin_x, text_y),
                 price_text,
                 font=price_font,
-                fill=self._price_color,
+                fill=text_color,
             )
-        # Описание
-        desc_max_width = width - 2 * margin_x
-        desc_y = price_y + (price_font_size + 10 if is_price else 0)
-        desc_max_height = overlay_bottom - desc_y - 10
-        description = str(img_model.product.description)[: self._max_description_length]
-        fitted_text = self._fit_text_to_overlay(
-            draw,
-            description,
-            desc_font,
-            desc_max_width,
-            desc_max_height,
-            line_spacing=self._line_spacing,
-        )
-        self._draw_multiline_text(
-            draw,
-            fitted_text,
-            (margin_x, desc_y),
-            desc_font,
-            self._desc_color,
-            max_width=desc_max_width,
-            line_spacing=self._line_spacing,
-        )
+            text_y += price_font_size + 10
+
+        if "name" in show_captions:
+            name_text = str(img_model.product.name)[:30]
+            # Уменьшаем шрифт для названия если нужно
+            name_font_size = min(font_size, price_font_size)
+            try:
+                name_font = ImageFont.truetype(self._font.get_font(), name_font_size)
+            except Exception:
+                name_font = font
+            draw.text(
+                (margin_x, text_y),
+                name_text,
+                font=name_font,
+                fill=text_color,
+            )
+            text_y += name_font_size + 6
+
+        if "description" in show_captions:
+            desc_max_width = width - 2 * margin_x
+            desc_max_height = overlay_bottom - text_y - 10
+            description = str(img_model.product.description)[
+                : self._max_description_length
+            ]
+            fitted_text = self._fit_text_to_overlay(
+                draw,
+                description,
+                desc_font,
+                desc_max_width,
+                desc_max_height,
+                line_spacing=self._line_spacing,
+            )
+            self._draw_multiline_text(
+                draw,
+                fitted_text,
+                (margin_x, text_y),
+                desc_font,
+                text_color,
+                max_width=desc_max_width,
+                line_spacing=self._line_spacing,
+            )
+
         return img_with_overlay
 
     def _fit_text_to_overlay(
-        self, draw, text, font, max_width, max_height, line_spacing=7,
+        self,
+        draw,
+        text,
+        font,
+        max_width,
+        max_height,
+        line_spacing=7,
     ):
         text = text[: self._max_description_length]
         lines = textwrap.wrap(

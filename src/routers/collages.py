@@ -1,4 +1,6 @@
 import logging
+import os
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -37,11 +39,12 @@ async def generate_collage_from_data(request: CollageRequest) -> FileResponse:
         "API запрос: генерация коллажа из %d изображений",
         len(request.images),
     )
+    
+    collage_path = None
 
     try:
         collage_path = await CollageService.create_collage_from_data(
             request.images,
-            "collage.jpg",
             request.is_price,
         )
         log.info("API ответ: коллаж создан по пути %s", collage_path)
@@ -53,6 +56,14 @@ async def generate_collage_from_data(request: CollageRequest) -> FileResponse:
     except Exception as e:
         log.exception("API ошибка при создании коллажа: %s", e)
         raise HTTPException(status_code=500, detail="Ошибка создания коллажа") from e
+    finally:
+        # Cleanup the collage file after serving
+        if collage_path and os.path.exists(collage_path):
+            try:
+                os.remove(collage_path)
+                log.debug("Файл коллажа удален: %s", collage_path)
+            except Exception as e:
+                log.warning("Не удалось удалить файл коллажа %s: %s", collage_path, e)
 
 
 @router.post("/generate/with-layout")
@@ -79,13 +90,14 @@ async def generate_collage_with_layout(request: CollageWithLayoutRequest) -> Fil
         len(request.images),
         len(request.layout.cells),
     )
+    
+    collage_path = None
 
     try:
         collage_path = await CollageService.create_collage_with_layout(
             request.images,
             request.layout,
             request.settings,
-            "collage.jpg",
         )
         log.info("API ответ: коллаж с макетом создан по пути %s", collage_path)
         return FileResponse(
@@ -96,6 +108,14 @@ async def generate_collage_with_layout(request: CollageWithLayoutRequest) -> Fil
     except Exception as e:
         log.exception("API ошибка при создании коллажа с макетом: %s", e)
         raise HTTPException(status_code=500, detail="Ошибка создания коллажа") from e
+    finally:
+        # Cleanup the collage file after serving
+        if collage_path and os.path.exists(collage_path):
+            try:
+                os.remove(collage_path)
+                log.debug("Файл коллажа удален: %s", collage_path)
+            except Exception as e:
+                log.warning("Не удалось удалить файл коллажа %s: %s", collage_path, e)
 
 
 @router.post("/generate/from-directus")
@@ -135,6 +155,8 @@ async def generate_collage_from_directus(
         product_ids,
         category_ids,
     )
+    
+    collage_path = None
 
     try:
         # Создаем конфигурацию Directus
@@ -200,7 +222,6 @@ async def generate_collage_from_directus(
         # Генерируем коллаж
         collage_path = await CollageService.create_collage_from_data(
             images,
-            "collage.jpg",
             is_price,
         )
         log.info("API ответ: коллаж создан по пути %s", collage_path)
@@ -215,3 +236,11 @@ async def generate_collage_from_directus(
     except Exception as e:
         log.exception("API ошибка при создании коллажа из Directus: %s", e)
         raise HTTPException(status_code=500, detail="Ошибка создания коллажа") from e
+    finally:
+        # Cleanup the collage file after serving
+        if collage_path and os.path.exists(collage_path):
+            try:
+                os.remove(collage_path)
+                log.debug("Файл коллажа удален: %s", collage_path)
+            except Exception as e:
+                log.warning("Не удалось удалить файл коллажа %s: %s", collage_path, e)

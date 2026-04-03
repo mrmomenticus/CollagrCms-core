@@ -43,7 +43,9 @@ class ImageData(BaseModel):
     product_name: str = Field("", description="Название продукта")
     product_price: int = Field(0, description="Цена продукта")
     product_description: str = Field("", description="Описание продукта")
-    categories: list[str] = Field(default_factory=list, description="Категории продукта")
+    categories: list[str] = Field(
+        default_factory=list, description="Категории продукта"
+    )
 
 
 class CollageRequest(BaseModel):
@@ -53,10 +55,12 @@ class CollageRequest(BaseModel):
         ...,
         min_length=1,
         max_length=16,
-        description="Список изображений для коллажа (от 1 до 16)"
+        description="Список изображений для коллажа (от 1 до 16)",
     )
     is_price: bool = Field(True, description="Добавлять ли цену на оверлей")
-    batch_size: int = Field(16, ge=1, le=16, description="Размер пакета для пакетной генерации")
+    batch_size: int = Field(
+        16, ge=1, le=16, description="Размер пакета для пакетной генерации"
+    )
 
 
 class DirectusConfig(BaseModel):
@@ -82,6 +86,17 @@ class CellSize(BaseModel):
     height: float = Field(..., description="Высота")
 
 
+class CaptionStyle(BaseModel):
+    """Стиль подписи под изображением."""
+
+    font_size: int = Field(13, description="Размер шрифта подписи")
+    color: str = Field("#1f2937", description="Цвет текста подписи")
+    background: str = Field("#ffffff", description="Цвет фона подписи")
+    per_cell_opacity: int = Field(
+        80, ge=0, le=100, description="Прозрачность фона (0-100)"
+    )
+
+
 class TextConfig(BaseModel):
     """Конфигурация текстовой ячейки."""
 
@@ -99,8 +114,18 @@ class LayoutCell(BaseModel):
     position: CellPosition = Field(..., description="Позиция ячейки")
     size: CellSize = Field(..., description="Размер ячейки")
     rotation: float = Field(0, description="Поворот в градусах")
-    product_id: int | None = Field(None, description="ID продукта для привязки (опционально)")
-    text_config: TextConfig | None = Field(None, description="Конфигурация текста (для текстовых ячеек)")
+    product_id: int | None = Field(
+        None, description="ID продукта для привязки (опционально)"
+    )
+    text_config: TextConfig | None = Field(
+        None, description="Конфигурация текста (для текстовых ячеек)"
+    )
+    captions: list[str] = Field(
+        default_factory=list, description="Типы подписей: name, description, price"
+    )
+    caption_style: CaptionStyle | None = Field(
+        None, description="Стиль подписей (для ячеек изображений)"
+    )
 
 
 class CanvasConfig(BaseModel):
@@ -125,6 +150,9 @@ class CollageSettings(BaseModel):
     is_name: bool = Field(True, description="Добавлять ли название")
     is_category: bool = Field(True, description="Добавлять ли категорию")
     is_description: bool = Field(False, description="Добавлять ли описание")
+    caption_opacity: int = Field(
+        80, ge=0, le=100, description="Прозрачность фона подписей (0-100)"
+    )
 
 
 class CollageWithLayoutRequest(BaseModel):
@@ -134,7 +162,9 @@ class CollageWithLayoutRequest(BaseModel):
         ...,
         min_length=1,
         max_length=16,
-        description="Список изображений для коллажа (от 1 до 16)"
+        description="Список изображений для коллажа (от 1 до 16)",
     )
     layout: CollageLayout = Field(..., description="Макет коллажа")
-    settings: CollageSettings = Field(default_factory=CollageSettings, description="Настройки генерации")
+    settings: CollageSettings = Field(
+        default_factory=CollageSettings, description="Настройки генерации"
+    )

@@ -22,7 +22,9 @@ log = logging.getLogger(__name__)
 
 
 def _normalize_image_url(url: str) -> str:
-    """Возвращает URL изображения как есть."""
+    """Нормализует URL изображения, добавляя базовый URL Directus для относительных путей."""
+    if url.startswith("/"):
+        return f"{config.get_directus_url().rstrip('/')}{url}"
     return url
 
 

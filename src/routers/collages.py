@@ -1,9 +1,11 @@
 import logging
+import zipfile
+from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.background import BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from src.core.collages import CollageService
 from src.core.directus_client import DirectusClient
@@ -123,7 +125,7 @@ async def generate_collage_from_directus(
     product_ids: list[int] | None = Query(None, description="Список ID продуктов"),
     category_ids: list[int] | None = Query(None, description="Список ID категорий"),
     is_price: bool = Query(True, description="Добавлять ли цену на оверлей"),
-    background_tasks: BackgroundTasks = None,
+    background_tasks: BackgroundTasks = None,  # type: ignore[assignment]
 ) -> FileResponse:
     """Генерирует коллаж, получая данные напрямую из Directus.
 
@@ -226,3 +228,87 @@ async def generate_collage_from_directus(
         media_type="image/jpeg",
         filename="collage.jpg",
     )
+
+
+@router.post("/generate/batch")
+async def generate_batch_collages(
+    requests: list[CollageWithLayoutRequest],
+    background_tasks: BackgroundTasks,
+):
+    """Генерирует несколько коллажей и возвращает архив.
+
+    Принимает список запросов на генерацию коллажей.
+    Если запросов несколько - возвращает ZIP архив.
+    Если запрос один - возвращает одиночный файл (для обратной совместимости).
+
+    Args:
+        requests: Список запросов с данными об изображениях, макетах и настройках
+        background_tasks: Background tasks for cleanup
+
+    Returns:
+        ZIP архив с коллажами или одиночный файл JPEG
+
+    Raises:
+        HTTPException: 422 - Неверное количество изображений или макет
+        HTTPException: 500 - Ошибка создания коллажа
+
+    """
+    log.info("API запрос: пакетная генерация %d коллажей", len(requests))
+
+    if not requests:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Список запросов пуст",
+        )
+
+    collage_paths = []
+
+    try:
+        for idx, req in enumerate(requests, start=1):
+            log.info(
+                "Генерация коллажа %d/%d (%d изображений, %d ячеек)",
+                idx,
+                len(requests),
+                len(req.images),
+                len(req.layout.cells),
+            )
+
+            collage_path = await CollageService.create_collage_with_layout(
+                req.images,
+                req.layout,
+                req.settings,
+            )
+            collage_paths.append((f"collage_{idx}.jpg", collage_path))
+            log.info("Коллаж %d создан: %s", idx, collage_path)
+
+        if len(collage_paths) == 1:
+            single_path = collage_paths[0][1]
+            background_tasks.add_task(_cleanup_file, single_path)
+            return FileResponse(
+                single_path,
+                media_type="image/jpeg",
+                filename="collage.jpg",
+            )
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for filename, filepath in collage_paths:
+                zip_file.write(filepath, filename)
+                background_tasks.add_task(_cleanup_file, filepath)
+
+        zip_buffer.seek(0)
+
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={"Content-Disposition": "attachment; filename=collages.zip"},
+        )
+
+    except HTTPException:
+        for _, path in collage_paths:
+            if Path(path).exists():
+                try:
+                    Path(path).unlink()
+                except Exception:
+                    pass
+        raise

@@ -18,14 +18,8 @@ from src.models.models import (
 )
 from src.utils.config import config
 
+
 log = logging.getLogger(__name__)
-
-
-def _normalize_image_url(url: str) -> str:
-    """Нормализует URL изображения, добавляя базовый URL Directus для относительных путей."""
-    if url.startswith("/"):
-        return f"{config.get_directus_url().rstrip('/')}{url}"
-    return url
 
 
 async def _download_images(
@@ -39,8 +33,7 @@ async def _download_images(
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, img_data in enumerate(images, start=1):
                 try:
-                    image_url = _normalize_image_url(img_data.url)
-                    response = await client.get(image_url)
+                    response = await client.get(img_data.url)
                     response.raise_for_status()
 
                     temp_file = temp_dir / f"image_{idx}.jpg"

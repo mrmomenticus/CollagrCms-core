@@ -133,6 +133,7 @@ class CanvasConfig(BaseModel):
 
     width: int = Field(800, description="Ширина холста")
     height: int = Field(600, description="Высота холста")
+    background: str = Field("#353d3f", description="Цвет фона холста")
 
 
 class CollageLayout(BaseModel):

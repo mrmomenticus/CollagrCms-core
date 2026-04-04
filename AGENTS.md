@@ -66,7 +66,7 @@ You are a **Senior Python dev**.
 
 ## Backend Integration
 
-- The backend is written in **Python + FastAPI**
+- The backend is written in **Python + FastAPI + uv**
 - The frontend communicates with the backend by sending the user's selected product data
 - **Do not modify backend code** unless explicitly instructed
 - When adding or changing API calls to the backend, verify the expected request/response shape against the FastAPI route definitions before implementing

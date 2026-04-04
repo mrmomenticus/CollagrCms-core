@@ -29,6 +29,7 @@ def _normalize_image_url(url: str) -> str:
 
     Returns:
         Нормализованный абсолютный URL
+
     """
     if not url:
         return url
@@ -40,7 +41,9 @@ def _normalize_image_url(url: str) -> str:
     # Если URL относительный (начинается с /), добавляем базовый URL Directus
     if url.startswith("/"):
         directus_url = config.get_directus_url().rstrip("/")
-        return f"{directus_url}{url}"
+        # Frontend использует /directus-assets/ как proxy path, но Directus API использует /assets/
+        normalized_url = url.replace("/directus-assets/", "/assets/")
+        return f"{directus_url}{normalized_url}"
 
     # Для других случаев добавляем базовый URL
     directus_url = config.get_directus_url().rstrip("/")

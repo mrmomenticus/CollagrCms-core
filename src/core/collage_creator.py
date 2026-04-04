@@ -13,6 +13,23 @@ from src.models.models import (
 log = logging.getLogger(__name__)
 
 
+def _parse_hex_color(hex_color: str) -> tuple[int, int, int]:
+    """Парсит hex цвет в RGB tuple.
+
+    Args:
+        hex_color: Hex цвет в формате '#RRGGBB'
+
+    Returns:
+        RGB tuple (R, G, B)
+
+
+    """
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) == 6:
+        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+    return (53, 3, 61)
+
+
 class CollageCreator:
     """Класс для создания коллажа из изображений с текстом, размер холста зависит от количества изображений."""
 
@@ -168,15 +185,16 @@ class CollageCreator:
                 f"Количество изображений должно быть от 1 до 16, получено: {image_count}",
             )
 
-        # Получаем размеры холста из макета
+        # Получаем размеры и цвет холста из макета
         canvas_width = layout.canvas.width
         canvas_height = layout.canvas.height
+        bg_color = _parse_hex_color(layout.canvas.background)
 
         # Создаем изображение
         collage = Image.new(
             "RGB",
             (canvas_width, canvas_height),
-            self._background_color,
+            bg_color,
         )
         draw = ImageDraw.Draw(collage)
 

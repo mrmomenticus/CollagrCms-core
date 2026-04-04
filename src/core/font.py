@@ -39,6 +39,43 @@ class Font:
         """Возвращает путь к найденному шрифту."""
         return self._font
 
+    def get_font_bold(self) -> str | None:
+        """Возвращает путь к жирному варианту шрифта или None."""
+        if not self._font:
+            return None
+
+        font_path = Path(self._font)
+        font_dir = font_path.parent
+        font_name = font_path.stem
+
+        bold_candidates = [
+            font_dir / f"{font_name}-Bold.ttf",
+            font_dir / f"{font_name}-Bold.otf",
+            font_dir / f"{font_name}Bd.ttf",
+            font_dir / f"{font_name}Bd.otf",
+            font_dir / f"{font_name}_Bold.ttf",
+        ]
+
+        for candidate in bold_candidates:
+            if candidate.exists():
+                return str(candidate)
+
+        name_without_extension = (
+            font_path.name.replace(".ttf", "")
+            .replace(".otf", "")
+            .replace(".TTF", "")
+            .replace(".OTF", "")
+        )
+
+        for ext in ["ttf", "otf"]:
+            for pattern in self.CYRILLIC_FONT_PATTERNS:
+                glob_pattern = f"**/*{pattern}*Bold*.{ext}"
+                bold_fonts = list(font_dir.glob(glob_pattern))
+                if bold_fonts:
+                    return str(bold_fonts[0])
+
+        return None
+
     def _find_font(self) -> str:
         """Ищет первый подходящий шрифт с поддержкой кириллицы.
 

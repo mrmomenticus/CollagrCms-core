@@ -26,7 +26,11 @@ def _parse_hex_color(hex_color: str) -> tuple[int, int, int]:
     """
     hex_color = hex_color.lstrip("#")
     if len(hex_color) == 6:
-        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
+        return (
+            int(hex_color[0:2], 16),
+            int(hex_color[2:4], 16),
+            int(hex_color[4:6], 16),
+        )
     return (53, 3, 61)
 
 
@@ -61,24 +65,20 @@ class CollageCreator:
         return best_cols, best_rows
 
     def _resize_image_to_cell(self, img: Image.Image):
-        """Изменяет размер изображения до 900x900 с сохранением пропорций и обрезкой.
+        """Изменяет размер изображения до 900x900 с сохранением пропорций и обрезкой (cover).
 
         Изображение масштабируется так, чтобы короткая сторона стала 900, затем обрезается по центру до 900x900.
         Возвращает картинку и box (0, 0, 900, 900) для совместимости с overlay.
         """
         original_width, original_height = img.size
 
-        # Определяем коэффициент масштабирования, чтобы короткая сторона стала 900
         scale_factor = self._cell_size / min(original_width, original_height)
 
-        # Новые размеры после масштабирования
         new_width = int(original_width * scale_factor)
         new_height = int(original_height * scale_factor)
 
-        # Масштабируем изображение
         scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-        # Обрезаем до 900x900 по центру
         left = (new_width - self._cell_size) // 2
         top = (new_height - self._cell_size) // 2
         right = left + self._cell_size
@@ -135,7 +135,6 @@ class CollageCreator:
             try:
                 img = Image.open(img_model.path)
                 cell_img, img_box = self._resize_image_to_cell(img)
-                # Всегда добавляем оверлей, но с ценой или без в зависимости от is_price
                 cell_img = overlay.add_text_overlay(
                     cell_img,
                     img_model,
@@ -224,33 +223,37 @@ class CollageCreator:
                     if img_model:
                         img = Image.open(img_model.path)
 
-                        # Масштабируем изображение под размер ячейки
                         cell_width = int(cell.size.width)
                         cell_height = int(cell.size.height)
-                        img = img.resize(
+
+                        scaled_img = img.resize(
                             (cell_width, cell_height), Image.Resampling.LANCZOS
                         )
 
-                        # Поворачиваем изображение
                         if cell.rotation != 0:
-                            img = img.rotate(
+                            img = scaled_img.rotate(
                                 cell.rotation,
                                 expand=True,
                                 resample=Image.Resampling.BICUBIC,
                             )
+                        else:
+                            img = scaled_img
 
                         # Создаем оверлей для ячейки
                         overlay = Overlay(cell_width, cell_height)
 
                         # Получаем подписи из ячейки или используем дефолтные
-                        captions = (
-                            cell.captions if cell.captions is not None else ["price"]
-                        )
+                        captions = cell.captions if cell.captions is not None else []
 
                         # Пропускаем overlay если нет подписей
                         if captions:
                             caption_style = cell.caption_style
-                            caption_opacity = settings.caption_opacity
+                            caption_opacity = (
+                                caption_style.per_cell_opacity
+                                if caption_style
+                                and caption_style.per_cell_opacity is not None
+                                else settings.caption_opacity
+                            )
 
                             img = overlay.add_text_overlay(
                                 img,

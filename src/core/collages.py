@@ -22,21 +22,8 @@ log = logging.getLogger(__name__)
 
 
 def _normalize_image_url(url: str) -> str:
-    """Нормализует URL изображения.
-
-    Относительные пути (начинаются с '/') передаются через Caddy-прокси,
-    чтобы сохранить правила маршрутизации (авторизация, публичные права).
-    Абсолютные URL используются как есть.
-    """
-    if url.startswith(("http://", "https://")):
-        return url
-
-    if url.startswith("/"):
-        proxy_url = config.get_directus_url().rstrip("/")
-        return f"{proxy_url}{url}"
-
-    proxy_url = config.get_directus_url().rstrip("/")
-    return f"{proxy_url}/{url}"
+    """Возвращает URL изображения как есть."""
+    return url
 
 
 async def _download_images(

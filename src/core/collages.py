@@ -32,10 +32,10 @@ def _normalize_image_url(url: str) -> str:
         return url
 
     if url.startswith("/"):
-        proxy_url = config.get_proxy_url().rstrip("/")
+        proxy_url = config.get_directus_url().rstrip("/")
         return f"{proxy_url}{url}"
 
-    proxy_url = config.get_proxy_url().rstrip("/")
+    proxy_url = config.get_directus_url().rstrip("/")
     return f"{proxy_url}/{url}"
 
 

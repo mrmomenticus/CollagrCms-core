@@ -28,7 +28,6 @@ class _Config:
     def get_directus_url(self) -> str:
         return os.getenv("DIRECTUS_URL", "http://localhost")
 
-
     def get_collage_output_dir(self) -> Path:
         output_dir = Path(os.getenv("COLLAGE_OUTPUT_DIR", "./output"))
         output_dir.mkdir(parents=True, exist_ok=True)

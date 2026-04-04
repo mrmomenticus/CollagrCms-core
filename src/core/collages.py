@@ -18,16 +18,20 @@ from src.models.models import (
 )
 from src.utils.config import config
 
-
 log = logging.getLogger(__name__)
 
 
 async def _download_images(
     images: list[ImageData],
+    directus_token: str | None = None,
 ) -> tuple[list[ImageWithProduct], Path]:
     """Скачивает изображения во временную папку и возвращает модели изображений."""
     temp_dir = Path(tempfile.mkdtemp(prefix="collage_images_"))
     image_models: list[ImageWithProduct] = []
+
+    headers = {}
+    if directus_token:
+        headers["Authorization"] = f"Bearer {directus_token}"
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -35,7 +39,7 @@ async def _download_images(
                 image_url = f"{config.get_directus_url().rstrip('/')}{img_data.url}"
                 log.debug("Скачивание изображения: %s", image_url)
                 try:
-                    response = await client.get(image_url)
+                    response = await client.get(image_url, headers=headers)
                     response.raise_for_status()
 
                     temp_file = temp_dir / f"image_{idx}.jpg"
@@ -82,6 +86,7 @@ class CollageService:
     async def create_collage_from_data(
         images: list[ImageData],
         is_price: bool = True,
+        directus_token: str | None = None,
     ) -> str:
         """Создает коллаж из переданных данных об изображениях."""
         log.info("Создание коллажа из %d изображений", len(images))
@@ -98,7 +103,7 @@ class CollageService:
         )
 
         try:
-            image_models, temp_dir = await _download_images(images)
+            image_models, temp_dir = await _download_images(images, directus_token)
 
             try:
                 CollageCreator().create(image_models, str(collage_path), is_price)
@@ -123,6 +128,7 @@ class CollageService:
         images: list[ImageData],
         layout: CollageLayout,
         settings: CollageSettings,
+        directus_token: str | None = None,
     ) -> str:
         """Создает коллаж с пользовательским макетом."""
         log.info("Создание коллажа с макетом из %d изображений", len(images))
@@ -139,7 +145,7 @@ class CollageService:
         )
 
         try:
-            image_models, temp_dir = await _download_images(images)
+            image_models, temp_dir = await _download_images(images, directus_token)
 
             try:
                 CollageCreator().create_with_layout(
@@ -169,6 +175,7 @@ class CollageService:
         images: list[ImageData],
         layout: CollageLayout,
         settings: CollageSettings,
+        directus_token: str | None = None,
     ) -> list[str]:
         """Создает несколько коллажей с пользовательским макетом."""
         image_cells_count = sum(cell.type == "image" for cell in layout.cells)
@@ -205,6 +212,7 @@ class CollageService:
                 batch_images,
                 layout,
                 settings,
+                directus_token,
             )
             collage_paths.append(collage_path)
 

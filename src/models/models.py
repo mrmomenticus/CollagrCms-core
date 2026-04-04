@@ -60,6 +60,9 @@ class CollageRequest(BaseModel):
     batch_size: int = Field(
         default=16, ge=1, description="Размер пакета для пакетной генерации"
     )
+    directus_token: str | None = Field(
+        default=None, description="Токен авторизации Directus"
+    )
 
 
 class DirectusConfig(BaseModel):
@@ -164,4 +167,7 @@ class CollageWithLayoutRequest(BaseModel):
     layout: CollageLayout = Field(..., description="Макет коллажа")
     settings: CollageSettings = Field(
         default_factory=CollageSettings, description="Настройки генерации"
+    )
+    directus_token: str | None = Field(
+        default=None, description="Токен авторизации Directus"
     )

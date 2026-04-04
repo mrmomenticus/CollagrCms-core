@@ -41,6 +41,7 @@ async def generate_collage_from_data(
     collage_path = await CollageService.create_collage_from_data(
         request.images,
         request.is_price,
+        request.directus_token,
     )
     log.info("API ответ: коллаж создан по пути %s", collage_path)
 
@@ -69,6 +70,7 @@ async def generate_collage_with_layout(
         request.images,
         request.layout,
         request.settings,
+        request.directus_token,
     )
     log.info("API ответ: коллаж с макетом создан по пути %s", collage_path)
 
@@ -152,7 +154,9 @@ async def generate_collage_from_directus(
         images = images[:16]
         log.warning("Количество изображений ограничено до 16")
 
-    collage_path = await CollageService.create_collage_from_data(images, is_price)
+    collage_path = await CollageService.create_collage_from_data(
+        images, is_price, directus_token
+    )
     log.info("API ответ: коллаж создан по пути %s", collage_path)
 
     return FileResponse(
@@ -192,6 +196,7 @@ async def generate_batch_collages(
                 req.images,
                 req.layout,
                 req.settings,
+                req.directus_token,
             )
             collage_paths.append((f"collage_{idx}.jpg", collage_path))
             log.info("Коллаж %d создан: %s", idx, collage_path)
@@ -246,6 +251,7 @@ async def generate_batch_auto(
         request.images,
         request.layout,
         request.settings,
+        request.directus_token,
     )
 
     collage_paths_with_names = [

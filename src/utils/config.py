@@ -26,11 +26,8 @@ class _Config:
         }
 
     def get_directus_url(self) -> str:
-        return os.getenv("DIRECTUS_URL", "http://localhost:8055")
+        return os.getenv("DIRECTUS_URL", "http://localhost")
 
-    def get_proxy_url(self) -> str:
-        """Базовый URL прокси (Caddy) для скачивания assets по относительным путям."""
-        return os.getenv("PROXY_URL", "http://caddy:80")
 
     def get_collage_output_dir(self) -> Path:
         output_dir = Path(os.getenv("COLLAGE_OUTPUT_DIR", "./output"))

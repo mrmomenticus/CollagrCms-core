@@ -15,6 +15,7 @@ from src.models.models import (
     DirectusConfig,
     ImageData,
 )
+from src.utils.config import config
 
 router = APIRouter(prefix="/v1/collage", tags=["collages"])
 log = logging.getLogger(__name__)
@@ -132,7 +133,7 @@ async def generate_collage_from_directus(
             images.append(
                 ImageData(
                     id=pf["id"],
-                    url=f"{directus_url}/assets/{file_id_value}",
+                    url=f"{config.get_directus_url()}/directus-assets/{file_id_value}",
                     product_id=product["id"],
                     product_name=product.get("name", ""),
                     product_price=product.get("price", 0),

@@ -37,13 +37,28 @@ async def _download_images(
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, img_data in enumerate(images, start=1):
                 image_url = f"{config.get_directus_url().rstrip('/')}{img_data.url}"
-                log.debug("Скачивание изображения: %s", image_url)
+                log.info(
+                    "Запрос к Directus: URL=%s, headers=%s, image_id=%s, product_id=%s",
+                    image_url,
+                    {"Authorization": "Bearer <token>"}
+                    if headers.get("Authorization")
+                    else {},
+                    img_data.id,
+                    img_data.product_id,
+                )
                 try:
                     response = await client.get(image_url, headers=headers)
                     response.raise_for_status()
 
                     temp_file = temp_dir / f"image_{idx}.jpg"
                     temp_file.write_bytes(response.content)
+
+                    log.info(
+                        "Успешно скачано изображение: URL=%s, size=%d bytes, image_id=%s",
+                        image_url,
+                        len(response.content),
+                        img_data.id,
+                    )
 
                     categories = [
                         Category(id=i, name=cat_name, description=None)
@@ -67,7 +82,25 @@ async def _download_images(
                     log.debug("Изображение %d скачано: %s", idx, img_data.url)
 
                 except httpx.HTTPError as e:
-                    log.error("Ошибка скачивания изображения %s: %s", image_url, e)
+                    if isinstance(e, httpx.HTTPStatusError):
+                        log.error(
+                            "Ошибка скачивания изображения: URL=%s, headers_sent=%s, status_code=%s, error=%s",
+                            image_url,
+                            {"Authorization": "Bearer <token>"}
+                            if headers.get("Authorization")
+                            else {},
+                            e.response.status_code,
+                            e,
+                        )
+                    else:
+                        log.error(
+                            "Ошибка скачивания изображения: URL=%s, headers_sent=%s, error=%s",
+                            image_url,
+                            {"Authorization": "Bearer <token>"}
+                            if headers.get("Authorization")
+                            else {},
+                            e,
+                        )
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Ошибка скачивания изображения {image_url}: {e}",

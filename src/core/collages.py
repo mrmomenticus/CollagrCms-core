@@ -66,7 +66,7 @@ async def _download_images(
                     log.error("Ошибка скачивания изображения %s: %s", img_data.url, e)
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Ошибка скачивания изображения {img_data.url}: {e}",
+                        detail=f"Ошибка скачивания изображения {config.get_directus_url().rstrip('/')}{img_data.url}: {e}",
                     ) from e
     except HTTPException:
         shutil.rmtree(temp_dir, ignore_errors=True)

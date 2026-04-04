@@ -33,7 +33,9 @@ async def _download_images(
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, img_data in enumerate(images, start=1):
                 try:
-                    response = await client.get(img_data.url)
+                    image_url = f"{config.get_directus_url().rstrip('/')}{img_data.url}"
+                    log.debug("Скачивание изображения: %s", image_url)
+                    response = await client.get(image_url)
                     response.raise_for_status()
 
                     temp_file = temp_dir / f"image_{idx}.jpg"

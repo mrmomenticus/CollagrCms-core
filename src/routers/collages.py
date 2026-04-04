@@ -3,7 +3,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Cookie, HTTPException, Query, status
 from fastapi.background import BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
 
@@ -21,6 +21,21 @@ router = APIRouter(prefix="/v1/collage", tags=["collages"])
 log = logging.getLogger(__name__)
 
 
+def _get_directus_token(body_token: str | None, cookie_token: str | None) -> str | None:
+    """Извлекает Directus токен из body или cookie.
+
+    Priority: body token > cookie token
+    """
+    if body_token:
+        log.debug("Using directus_token from request body")
+        return body_token
+    if cookie_token:
+        log.debug("Using directus_token from cookie")
+        return cookie_token
+    log.warning("No directus_token found in body or cookie")
+    return None
+
+
 def _cleanup_file(path: str) -> None:
     """Удаляет файл если он существует."""
     try:
@@ -34,14 +49,16 @@ def _cleanup_file(path: str) -> None:
 async def generate_collage_from_data(
     request: CollageRequest,
     background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
 ) -> FileResponse:
     """Генерирует коллаж из переданных данных об изображениях."""
     log.info("API запрос: генерация коллажа из %d изображений", len(request.images))
 
+    token = _get_directus_token(request.directus_token, directus_session_token)
     collage_path = await CollageService.create_collage_from_data(
         request.images,
         request.is_price,
-        request.directus_token,
+        token,
     )
     log.info("API ответ: коллаж создан по пути %s", collage_path)
 
@@ -58,6 +75,7 @@ async def generate_collage_from_data(
 async def generate_collage_with_layout(
     request: CollageWithLayoutRequest,
     background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
 ) -> FileResponse:
     """Генерирует коллаж с пользовательским макетом."""
     log.info(
@@ -66,11 +84,12 @@ async def generate_collage_with_layout(
         len(request.layout.cells),
     )
 
+    token = _get_directus_token(request.directus_token, directus_session_token)
     collage_path = await CollageService.create_collage_with_layout(
         request.images,
         request.layout,
         request.settings,
-        request.directus_token,
+        token,
     )
     log.info("API ответ: коллаж с макетом создан по пути %s", collage_path)
 
@@ -92,6 +111,7 @@ async def generate_collage_from_directus(
     product_ids: list[int] | None = Query(None, description="Список ID продуктов"),
     category_ids: list[int] | None = Query(None, description="Список ID категорий"),
     is_price: bool = Query(True, description="Добавлять ли цену на оверлей"),
+    directus_session_token: str | None = Cookie(None),
 ) -> FileResponse:
     """Генерирует коллаж, получая данные напрямую из Directus."""
     log.info(
@@ -100,9 +120,10 @@ async def generate_collage_from_directus(
         category_ids,
     )
 
+    token = _get_directus_token(directus_token, directus_session_token)
     directus_config = DirectusConfig(
         url=directus_url,
-        token=directus_token,
+        token=token,
         email=directus_email,
         password=directus_password,
     )
@@ -170,6 +191,7 @@ async def generate_collage_from_directus(
 async def generate_batch_collages(
     requests: list[CollageWithLayoutRequest],
     background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
 ) -> FileResponse | StreamingResponse:
     """Генерирует несколько коллажей и возвращает архив."""
     log.info("API запрос: пакетная генерация %d коллажей", len(requests))
@@ -192,11 +214,12 @@ async def generate_batch_collages(
                 len(req.layout.cells),
             )
 
+            token = _get_directus_token(req.directus_token, directus_session_token)
             collage_path = await CollageService.create_collage_with_layout(
                 req.images,
                 req.layout,
                 req.settings,
-                req.directus_token,
+                token,
             )
             collage_paths.append((f"collage_{idx}.jpg", collage_path))
             log.info("Коллаж %d создан: %s", idx, collage_path)
@@ -234,6 +257,7 @@ async def generate_batch_collages(
 async def generate_batch_auto(
     request: CollageWithLayoutRequest,
     background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
 ) -> FileResponse | StreamingResponse:
     """Генерирует несколько коллажей автоматически."""
     log.info(
@@ -247,11 +271,14 @@ async def generate_batch_auto(
             detail="Список изображений пуст",
         )
 
+    token = _get_directus_token(request.directus_token, directus_session_token)
+    log.info("directus_token: %s", "присутствует" if token else "ОТСУТСТВУЕТ")
+
     collage_paths = await CollageService.create_batch_collages_with_layout(
         request.images,
         request.layout,
         request.settings,
-        request.directus_token,
+        token,
     )
 
     collage_paths_with_names = [

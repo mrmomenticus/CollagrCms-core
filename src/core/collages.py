@@ -32,6 +32,9 @@ async def _download_images(
     headers = {}
     if directus_token:
         headers["Authorization"] = f"Bearer {directus_token}"
+        log.info("Токен Directus получен, будет использован для запросов")
+    else:
+        log.warning("Токен Directus НЕ получен! directus_token=%s", directus_token)
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

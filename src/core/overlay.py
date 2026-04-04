@@ -168,10 +168,18 @@ class Overlay:
         # Определяем, какие подписи показывать
         show_captions = captions if captions is not None else ["price"]
 
+        # Если нечего отображать, возвращаем оригинальное изображение
+        has_price = "price" in show_captions and is_price
+        has_name = "name" in show_captions
+        has_description = "description" in show_captions
+
+        if not (has_price or has_name or has_description):
+            return img
+
         # Текущая позиция Y для текста
         text_y = overlay_top + 10
 
-        if "price" in show_captions and is_price:
+        if has_price:
             price_text = f"{img_model.product.price} ₽"
             draw.text(
                 (margin_x, text_y),
@@ -181,7 +189,7 @@ class Overlay:
             )
             text_y += price_font_size + 10
 
-        if "name" in show_captions:
+        if has_name:
             name_text = str(img_model.product.name)[:30]
             # Уменьшаем шрифт для названия если нужно
             name_font_size = min(font_size, price_font_size)
@@ -197,7 +205,7 @@ class Overlay:
             )
             text_y += name_font_size + 6
 
-        if "description" in show_captions:
+        if has_description:
             desc_max_width = width - 2 * margin_x
             desc_max_height = overlay_bottom - text_y - 10
             description = str(img_model.product.description)[

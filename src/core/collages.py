@@ -76,8 +76,8 @@ class CollageService:
         """
         log.info(f"Создание коллажа из {len(images)} изображений")
 
-        if len(images) < 1 or len(images) > 16:
-            error_msg = f"Количество изображений должно быть от 1 до 16, получено: {len(images)}"
+        if len(images) < 1:
+            error_msg = "Список изображений не может быть пустым"
             log.warning(error_msg)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -188,8 +188,8 @@ class CollageService:
         """
         log.info(f"Создание коллажа с макетом из {len(images)} изображений")
 
-        if len(images) < 1 or len(images) > 16:
-            error_msg = f"Количество изображений должно быть от 1 до 16, получено: {len(images)}"
+        if len(images) < 1:
+            error_msg = "Список изображений не может быть пустым"
             log.warning(error_msg)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -276,5 +276,69 @@ class CollageService:
             log.exception("Ошибка при создании коллажа с макетом: %s", e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Ошибка при создании коллажа: {e}",
+                detail=f"Ошибка при создании коллажа: %s",
             ) from e
+
+    @staticmethod
+    async def create_batch_collages_with_layout(
+        images: list[ImageData],
+        layout: CollageLayout,
+        settings: CollageSettings,
+    ) -> list[str]:
+        """Создает несколько коллажей с пользовательским макетом.
+
+        Изображения разбиваются на группы по количеству image-ячеек в макете.
+        Если изображений больше чем ячеек - создаётся несколько коллажей.
+        Если изображений меньше чем ячеек - лишние ячейки остаются пустыми.
+
+        Args:
+            images: Список данных об изображениях
+            layout: Макет коллажа с ячейками
+            settings: Настройки отображения
+
+        Returns:
+            Список путей к созданным коллажам
+
+        Raises:
+            HTTPException: Если ошибка создания коллажа
+
+        """
+        image_cells_count = sum(1 for cell in layout.cells if cell.type == "image")
+
+        if image_cells_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="В макете нет ячеек для изображений",
+            )
+
+        log.info(
+            "Пакетная генерация: %d изображений, %d ячеек на коллаж",
+            len(images),
+            image_cells_count,
+        )
+
+        collage_paths = []
+        total_collages = (len(images) + image_cells_count - 1) // image_cells_count
+
+        for collage_idx in range(total_collages):
+            start_idx = collage_idx * image_cells_count
+            end_idx = min(start_idx + image_cells_count, len(images))
+            batch_images = images[start_idx:end_idx]
+
+            log.info(
+                "Генерация коллажа %d/%d: изображения %d-%d",
+                collage_idx + 1,
+                total_collages,
+                start_idx + 1,
+                end_idx,
+            )
+
+            collage_path = await CollageService.create_collage_with_layout(
+                batch_images,
+                layout,
+                settings,
+            )
+            collage_paths.append(collage_path)
+
+        log.info("Пакетная генерация завершена: %d коллажей", len(collage_paths))
+        return collage_paths

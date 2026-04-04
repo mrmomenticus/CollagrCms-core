@@ -249,10 +249,7 @@ class CollageCreator:
 
                         # Пропускаем overlay если нет подписей
                         if captions:
-                            # Получаем стиль подписей
                             caption_style = cell.caption_style
-
-                            # Получаем прозрачность из настроек или ячейки
                             caption_opacity = settings.caption_opacity
 
                             img = overlay.add_text_overlay(
@@ -264,22 +261,6 @@ class CollageCreator:
                                 caption_style,
                                 caption_opacity,
                             )
-
-                        # Получаем стиль подписей
-                        caption_style = cell.caption_style
-
-                        # Получаем прозрачность из настроек или ячейки
-                        caption_opacity = settings.caption_opacity
-
-                        img = overlay.add_text_overlay(
-                            img,
-                            img_model,
-                            (0, 0, cell_width, cell_height),
-                            settings.is_price,
-                            captions,
-                            caption_style,
-                            caption_opacity,
-                        )
 
                         # Вставляем изображение на холст
                         x = int(cell.position.x)

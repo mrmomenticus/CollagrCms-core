@@ -54,12 +54,11 @@ class CollageRequest(BaseModel):
     images: list[ImageData] = Field(
         ...,
         min_length=1,
-        max_length=16,
-        description="Список изображений для коллажа (от 1 до 16)",
+        description="Список изображений для коллажа",
     )
     is_price: bool = Field(True, description="Добавлять ли цену на оверлей")
     batch_size: int = Field(
-        16, ge=1, le=16, description="Размер пакета для пакетной генерации"
+        16, ge=1, description="Размер пакета для пакетной генерации"
     )
 
 
@@ -162,8 +161,7 @@ class CollageWithLayoutRequest(BaseModel):
     images: list[ImageData] = Field(
         ...,
         min_length=1,
-        max_length=16,
-        description="Список изображений для коллажа (от 1 до 16)",
+        description="Список изображений для коллажа",
     )
     layout: CollageLayout = Field(..., description="Макет коллажа")
     settings: CollageSettings = Field(

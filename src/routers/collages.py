@@ -312,3 +312,71 @@ async def generate_batch_collages(
                 except Exception:
                     pass
         raise
+
+
+@router.post("/generate/batch-auto")
+async def generate_batch_auto(
+    request: CollageWithLayoutRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Генерирует несколько коллажей автоматически.
+
+    Изображения автоматически разбиваются на группы по количеству image-ячеек в макете.
+    Например: 16 изображений с макетом на 3 ячейки = 6 коллажей.
+    Если изображений меньше чем ячеек - создаётся один коллаж с незаполненными ячейками.
+
+    Args:
+        request: Запрос с данными об изображениях, макете и настройках
+        background_tasks: Background tasks for cleanup
+
+    Returns:
+        ZIP архив с коллажами или одиночный файл JPEG
+
+    Raises:
+        HTTPException: 422 - Неверное количество изображений или макет
+        HTTPException: 500 - Ошибка создания коллажа
+
+    """
+    log.info(
+        "API запрос: автопакетная генерация (%d изображений)",
+        len(request.images),
+    )
+
+    if not request.images:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Список изображений пуст",
+        )
+
+    collage_paths = await CollageService.create_batch_collages_with_layout(
+        request.images,
+        request.layout,
+        request.settings,
+    )
+
+    collage_paths_with_names = [
+        (f"collage_{idx + 1}.jpg", path) for idx, path in enumerate(collage_paths)
+    ]
+
+    for _, path in collage_paths_with_names:
+        background_tasks.add_task(_cleanup_file, path)
+
+    if len(collage_paths) == 1:
+        return FileResponse(
+            collage_paths[0],
+            media_type="image/jpeg",
+            filename="collage.jpg",
+        )
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for filename, filepath in collage_paths_with_names:
+            zip_file.write(filepath, filename)
+
+    zip_buffer.seek(0)
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=collages.zip"},
+    )

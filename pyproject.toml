@@ -1,31 +1,43 @@
 [project]
 name = "collagrcms"
-version = "0.1.0"
+version = "0.2.0"
 description = "Backend service for collage generation"
 readme = "README.md"
 requires-python = ">=3.13"
+license = "MIT"
 
 dependencies = [
     "fastapi>=0.115.12",
     "httpx>=0.28.1",
     "pillow>=11.2.1",
     "pydantic>=2.11.5",
-    "pytest>=8.3.5",
     "python-dotenv>=1.0.0",
-    "python-multipart>=0.0.20",
-    "pyyml>=0.0.2",
-    "uvicorn>=0.34.3",
+    "uvicorn[standard]>=0.34.3",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.5",
+    "ruff>=0.11.0",
+]
+
+[project.scripts]
+collagrcms = "src.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
-
 [tool.ruff]
 preview = true
 line-length = 88
+target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "B", "I", "RUF", "N", "LOG", "ERA", "W", "D", "UP", "ANN", "ASYNC", "S", "RET", "TCH", "ARG", "PTH"]
+select = ["E", "F", "W", "B", "I", "RUF", "N", "LOG", "ERA", "D", "UP", "ANN", "ASYNC", "S", "RET", "TCH", "ARG", "PTH"]
 ignore = ["E501", "RUF002", "RUF003", "D100", "D107", "D101", "RUF001", "D102"]
-fixable = ["ALL"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v"

@@ -22,32 +22,68 @@ log = logging.getLogger(__name__)
 
 
 def _normalize_image_url(url: str) -> str:
-    """Нормализует URL изображения, добавляя базовый URL Directus если нужно.
-
-    Args:
-        url: URL изображения (может быть абсолютным или относительным)
-
-    Returns:
-        Нормализованный абсолютный URL
-
-    """
-    if not url:
+    """Нормализует URL изображения, добавляя базовый URL Directus если нужно."""
+    if url.startswith(("http://", "https://")):
         return url
 
-    # Если URL уже абсолютный (содержит протокол), возвращаем как есть
-    if url.startswith("http://") or url.startswith("https://"):
-        return url
-
-    # Если URL относительный (начинается с /), добавляем базовый URL Directus
+    directus_url = config.get_directus_url().rstrip("/")
     if url.startswith("/"):
-        directus_url = config.get_directus_url().rstrip("/")
-        # Frontend использует /directus-assets/ как proxy path, но Directus API использует /assets/
         normalized_url = url.replace("/directus-assets/", "/assets/")
         return f"{directus_url}{normalized_url}"
 
-    # Для других случаев добавляем базовый URL
-    directus_url = config.get_directus_url().rstrip("/")
     return f"{directus_url}/{url.lstrip('/')}"
+
+
+async def _download_images(
+    images: list[ImageData],
+) -> tuple[list[ImageWithProduct], Path]:
+    """Скачивает изображения во временную папку и возвращает модели изображений."""
+    temp_dir = Path(tempfile.mkdtemp(prefix="collage_images_"))
+    image_models: list[ImageWithProduct] = []
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for idx, img_data in enumerate(images, start=1):
+                try:
+                    image_url = _normalize_image_url(img_data.url)
+                    response = await client.get(image_url)
+                    response.raise_for_status()
+
+                    temp_file = temp_dir / f"image_{idx}.jpg"
+                    temp_file.write_bytes(response.content)
+
+                    categories = [
+                        Category(id=i, name=cat_name, description=None)
+                        for i, cat_name in enumerate(img_data.categories, start=1)
+                    ]
+                    product = Product(
+                        id=img_data.product_id,
+                        name=img_data.product_name,
+                        description=img_data.product_description,
+                        price=img_data.product_price,
+                        categories=categories,
+                    )
+                    image_models.append(
+                        ImageWithProduct(
+                            id=img_data.id,
+                            product_id=img_data.product_id,
+                            path=str(temp_file),
+                            product=product,
+                        )
+                    )
+                    log.debug("Изображение %d скачано: %s", idx, img_data.url)
+
+                except httpx.HTTPError as e:
+                    log.error("Ошибка скачивания изображения %s: %s", img_data.url, e)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Ошибка скачивания изображения {img_data.url}: {e}",
+                    ) from e
+    except HTTPException:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+    return image_models, temp_dir
 
 
 class CollageService:
@@ -58,109 +94,40 @@ class CollageService:
         images: list[ImageData],
         is_price: bool = True,
     ) -> str:
-        """Создает коллаж из переданных данных об изображениях.
+        """Создает коллаж из переданных данных об изображениях."""
+        log.info("Создание коллажа из %d изображений", len(images))
 
-        Оптимизированный метод, который принимает все данные от фронтенда
-        и не требует дополнительных запросов к Directus.
-
-        Args:
-            images: Список данных об изображениях
-            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
-
-        Returns:
-            Путь к созданному коллажу
-
-        Raises:
-            HTTPException: Если ошибка создания коллажа
-
-        """
-        log.info(f"Создание коллажа из {len(images)} изображений")
-
-        if len(images) < 1:
-            error_msg = "Список изображений не может быть пустым"
-            log.warning(error_msg)
+        if not images:
+            log.warning("Список изображений пуст")
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=error_msg,
+                detail="Список изображений не может быть пустым",
             )
 
-        # Генерируем уникальное имя файла
-        unique_filename = f"collage_{uuid.uuid4().hex}.jpg"
-        collage_path = config.get_collage_output_dir() / unique_filename
+        collage_path = (
+            config.get_collage_output_dir() / f"collage_{uuid.uuid4().hex}.jpg"
+        )
 
         try:
-            # Скачиваем изображения во временную папку
-            temp_dir = tempfile.mkdtemp(prefix="collage_images_")
-            image_models = []
+            image_models, temp_dir = await _download_images(images)
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                for idx, img_data in enumerate(images, start=1):
-                    try:
-                        # Нормализуем URL изображения
-                        image_url = _normalize_image_url(img_data.url)
-
-                        # Скачиваем изображение
-                        response = await client.get(image_url)
-                        response.raise_for_status()
-
-                        # Сохраняем во временный файл
-                        temp_file = Path(temp_dir) / f"image_{idx}.jpg"
-                        temp_file.write_bytes(response.content)
-
-                        # Создаем продукт
-                        categories = [
-                            Category(id=i, name=cat_name, description=None)
-                            for i, cat_name in enumerate(img_data.categories, start=1)
-                        ]
-                        product = Product(
-                            id=img_data.product_id,
-                            name=img_data.product_name,
-                            description=img_data.product_description,
-                            price=img_data.product_price,
-                            categories=categories,
-                        )
-
-                        # Создаем модель изображения
-                        image_model = ImageWithProduct(
-                            id=img_data.id,
-                            product_id=img_data.product_id,
-                            path=str(temp_file),
-                            product=product,
-                        )
-                        image_models.append(image_model)
-
-                        log.debug("Изображение %d скачано: %s", idx, img_data.url)
-
-                    except httpx.HTTPError as e:
-                        log.error(
-                            "Ошибка скачивания изображения %s: %s", img_data.url, e
-                        )
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Ошибка скачивания изображения {img_data.url}: {e}",
-                        ) from e
-
-            # Создаем коллаж
-            CollageCreator().create(image_models, str(collage_path), is_price)
-            log.info("Коллаж успешно создан: %s", collage_path)
-
-            # Очищаем временные файлы
             try:
-                shutil.rmtree(temp_dir)
+                CollageCreator().create(image_models, str(collage_path), is_price)
+                log.info("Коллаж успешно создан: %s", collage_path)
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
                 log.debug("Временная папка удалена: %s", temp_dir)
-            except Exception as e:
-                log.warning("Не удалось удалить временную папку %s: %s", temp_dir, e)
 
             return str(collage_path)
 
         except HTTPException:
             raise
-        except Exception as e:
-            log.exception("Ошибка при создании коллажа: %s", e)
+        except Exception:
+            log.exception("Ошибка при создании коллажа")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Ошибка при создании коллажа: {e}",
-            ) from e
+                detail="Ошибка при создании коллажа",
+            ) from None
 
     @staticmethod
     async def create_collage_with_layout(
@@ -168,116 +135,45 @@ class CollageService:
         layout: CollageLayout,
         settings: CollageSettings,
     ) -> str:
-        """Создает коллаж с пользовательским макетом.
+        """Создает коллаж с пользовательским макетом."""
+        log.info("Создание коллажа с макетом из %d изображений", len(images))
 
-        Принимает данные об изображениях, макет холста и настройки отображения.
-        Позволяет создавать коллажи с произвольным расположением ячеек,
-        текстовыми надписями и настройками отображения.
-
-        Args:
-            images: Список данных об изображениях
-            layout: Макет коллажа с ячейками
-            settings: Настройки отображения
-
-        Returns:
-            Путь к созданному коллажу
-
-        Raises:
-            HTTPException: Если ошибка создания коллажа
-
-        """
-        log.info(f"Создание коллажа с макетом из {len(images)} изображений")
-
-        if len(images) < 1:
-            error_msg = "Список изображений не может быть пустым"
-            log.warning(error_msg)
+        if not images:
+            log.warning("Список изображений пуст")
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=error_msg,
+                detail="Список изображений не может быть пустым",
             )
 
-        # Генерируем уникальное имя файла
-        unique_filename = f"collage_{uuid.uuid4().hex}.jpg"
-        collage_path = config.get_collage_output_dir() / unique_filename
+        collage_path = (
+            config.get_collage_output_dir() / f"collage_{uuid.uuid4().hex}.jpg"
+        )
 
         try:
-            # Скачиваем изображения во временную папку
-            temp_dir = tempfile.mkdtemp(prefix="collage_images_")
-            image_models = []
+            image_models, temp_dir = await _download_images(images)
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                for idx, img_data in enumerate(images, start=1):
-                    try:
-                        # Нормализуем URL изображения
-                        image_url = _normalize_image_url(img_data.url)
-
-                        # Скачиваем изображение
-                        response = await client.get(image_url)
-                        response.raise_for_status()
-
-                        # Сохраняем во временный файл
-                        temp_file = Path(temp_dir) / f"image_{idx}.jpg"
-                        temp_file.write_bytes(response.content)
-
-                        # Создаем продукт
-                        categories = [
-                            Category(id=i, name=cat_name, description=None)
-                            for i, cat_name in enumerate(img_data.categories, start=1)
-                        ]
-                        product = Product(
-                            id=img_data.product_id,
-                            name=img_data.product_name,
-                            description=img_data.product_description,
-                            price=img_data.product_price,
-                            categories=categories,
-                        )
-
-                        # Создаем модель изображения
-                        image_model = ImageWithProduct(
-                            id=img_data.id,
-                            product_id=img_data.product_id,
-                            path=str(temp_file),
-                            product=product,
-                        )
-                        image_models.append(image_model)
-
-                        log.debug("Изображение %d скачано: %s", idx, img_data.url)
-
-                    except httpx.HTTPError as e:
-                        log.error(
-                            "Ошибка скачивания изображения %s: %s", img_data.url, e
-                        )
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Ошибка скачивания изображения {img_data.url}: {e}",
-                        ) from e
-
-            # Создаем коллаж с макетом
-            CollageCreator().create_with_layout(
-                image_models,
-                layout,
-                settings,
-                str(collage_path),
-            )
-            log.info("Коллаж с макетом успешно создан: %s", collage_path)
-
-            # Очищаем временные файлы
             try:
-                shutil.rmtree(temp_dir)
+                CollageCreator().create_with_layout(
+                    image_models,
+                    layout,
+                    settings,
+                    str(collage_path),
+                )
+                log.info("Коллаж с макетом успешно создан: %s", collage_path)
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
                 log.debug("Временная папка удалена: %s", temp_dir)
-            except Exception as e:
-                log.warning("Не удалось удалить временную папку %s: %s", temp_dir, e)
 
             return str(collage_path)
 
         except HTTPException:
             raise
-        except Exception as e:
-            log.exception("Ошибка при создании коллажа с макетом: %s", e)
+        except Exception:
+            log.exception("Ошибка при создании коллажа с макетом")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Ошибка при создании коллажа: %s",
-            ) from e
+                detail="Ошибка при создании коллажа",
+            ) from None
 
     @staticmethod
     async def create_batch_collages_with_layout(
@@ -285,25 +181,8 @@ class CollageService:
         layout: CollageLayout,
         settings: CollageSettings,
     ) -> list[str]:
-        """Создает несколько коллажей с пользовательским макетом.
-
-        Изображения разбиваются на группы по количеству image-ячеек в макете.
-        Если изображений больше чем ячеек - создаётся несколько коллажей.
-        Если изображений меньше чем ячеек - лишние ячейки остаются пустыми.
-
-        Args:
-            images: Список данных об изображениях
-            layout: Макет коллажа с ячейками
-            settings: Настройки отображения
-
-        Returns:
-            Список путей к созданным коллажам
-
-        Raises:
-            HTTPException: Если ошибка создания коллажа
-
-        """
-        image_cells_count = sum(1 for cell in layout.cells if cell.type == "image")
+        """Создает несколько коллажей с пользовательским макетом."""
+        image_cells_count = sum(cell.type == "image" for cell in layout.cells)
 
         if image_cells_count == 0:
             raise HTTPException(
@@ -317,7 +196,7 @@ class CollageService:
             image_cells_count,
         )
 
-        collage_paths = []
+        collage_paths: list[str] = []
         total_collages = (len(images) + image_cells_count - 1) // image_cells_count
 
         for collage_idx in range(total_collages):

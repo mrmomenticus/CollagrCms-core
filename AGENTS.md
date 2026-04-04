@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-This is a frontend service for generating artist collages. It consists of two main parts:
+This is a backend service for generating artist collages. It consists of two main parts:
 
-- **Collage Generator** — dynamic canvas-based collage builder using fabric.js
-- **Collage-core** - backend
+- **Collage Generator** — dynamic canvas-based collage builder using fabric.js (frontend)
+- **CollagrCms-core** - Python/FastAPI backend for collage generation
 - **Product Management** — powered by Directus CMS
 
 ### Data Flow
@@ -22,58 +22,71 @@ Directus → Frontend (fetch all products) → User selects items
 
 ## Your Role
 
-You are a **Senior Python dev**.
+You are a **Senior Python dev** working on the backend service.
 
 ---
 
-## Behavior Rules
+## Backend Tech Stack
 
-### Automation First
-
-- Execute requested actions **without asking for confirmation** unless blocked by:
-  - Missing critical information
-  - Security concerns
-  - Irreversible operations (file deletion, destructive DB operations, etc.)
-
-### Git Worktree Awareness
-
-- You may be operating inside a **git worktree**
-- **All changes must be made in the current working directory only**
-- **Never modify files outside the current working directory**
-- Always verify your working path before writing files: `pwd` / `git worktree list`
+| Layer            | Technology                              |
+| ---------------- | --------------------------------------- |
+| Framework        | FastAPI                                 |
+| Image Processing | Pillow (PIL)                            |
+| Validation       | Pydantic v2                             |
+| HTTP Client      | httpx                                   |
+| Server           | uvicorn                                 |
+| Package Manager  | uv                                      |
+| Python Version   | 3.13+                                   |
 
 ---
 
-## Tech Stack
+## Development Commands
 
-| Layer            | Technology                                                 |
-| ---------------- | ---------------------------------------------------------- |
-| Framework        | Vue 3 (Composition API preferred)                          |
-| Canvas / Collage | fabric.js                                                  |
-| CMS / Products   | Directus                                                   |
-| Backend          | Python + FastAPI                                           |
-| HTTP Client      | (use whatever is already in project, check `package.json`) |
+```bash
+# Install dependencies
+uv sync
 
----
+# Run development server
+uv run uvicorn src.__main__:app --reload
 
-## Directus Integration
+# Run tests
+uv run pytest
 
-- All product data is fetched from **Directus** on the frontend (for collage building)
-- The backend also queries Directus independently for selected items — do not assume the frontend cache is the source of truth for the backend
-- Use Directus REST endpoints consistently — check existing code before introducing a new approach
+# Lint code
+uv run ruff check src/
+```
 
 ---
 
-## Backend Integration
+## Code Style
 
-- The backend is written in **Python + FastAPI + uv**
-- The frontend communicates with the backend by sending the user's selected product data
-- **Do not modify backend code** unless explicitly instructed
-- When adding or changing API calls to the backend, verify the expected request/response shape against the FastAPI route definitions before implementing
-  You can use a browser.
+- Follow PEP 8 with line length 88
+- Use type hints for all function signatures
+- Use `__slots__` for memory efficiency in frequently instantiated classes
+- Prefer `logging` module over print statements
+- Use f-strings for simple formatting, logging format strings for logs
+
+---
+
+## Architecture Notes
+
+- **Singleton Pattern**: Config uses module-level singleton
+- **Async/Await**: All I/O operations are async
+- **Lifespan**: Use FastAPI lifespan context manager (not deprecated on_event)
+- **Error Handling**: Use HTTPException for API errors, log.exception for internal errors
+
+---
+
+## API Documentation
+
+API documentation is available at:
+- Swagger UI: `/docs`
+- ReDoc: `/redoc`
+
+---
 
 ## Out of Scope
 
-- Do not modify backend code unless explicitly instructed
+- Do not modify frontend code unless explicitly instructed
 - Do not change Directus schema or configuration
 - Do not touch files outside the current working directory

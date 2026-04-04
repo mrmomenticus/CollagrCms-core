@@ -10,36 +10,29 @@ Backend сервис для генерации коллажей из изобр�
 
 - **FastAPI** - HTTP API
 - **Pillow (PIL)** - обработка изображений
-- **Pydantic** - валидация данных
+- **Pydantic v2** - валидация данных
 - **httpx** - HTTP клиент для скачивания изображений
+- **uvicorn** - ASGI сервер
 
-## API Endpoints
+## Требования
 
-### Коллажи
+- Python 3.13+
+- uv (менеджер пакетов)
 
-- `POST /v1/collage/generate` - Генерация коллажа из переданных данных об изображениях
-  - Принимает данные от фронтенда (URL изображений, информация о продуктах)
-  - Возвращает: JPEG файл коллажа
-
-- `POST /v1/collage/generate/with-layout` - Генерация коллажа с пользовательским макетом
-  - Принимает данные об изображениях, макет холста и настройки отображения
-  - Возвращает: JPEG файл коллажа
-
-- `POST /v1/collage/generate/from-directus` - Генерация коллажа из Directus
-  - Получает данные напрямую из Directus API
-  - Возвращает: JPEG файл коллажа
-
-## Запуск
+## Установка и запуск
 
 ```bash
 # Установка зависимостей
 uv sync
 
+# Установка с dev зависимостями
+uv sync --extra dev
+
 # Запуск в режиме разработки
-uv run --env-file cfg/.env uvicorn src.__main__:app --host 0.0.0.0 --port 8000 --workers 4 --reload
+uv run uvicorn src.__main__:app --host 0.0.0.0 --port 8000 --reload
 
 # Запуск в продакшене
-uv run --env-file cfg/.env uvicorn src.__main__:app --host 0.0.0.0 --port 8000 --workers 4
+uv run uvicorn src.__main__:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
 ## Конфигурация
@@ -54,6 +47,8 @@ cp cfg/example.env cfg/.env
 - `SERVER_HOST` - хост сервера (по умолчанию: 0.0.0.0)
 - `SERVER_PORT` - порт сервера (по умолчанию: 8000)
 - `DEBUG` - режим отладки (по умолчанию: False)
+- `DIRECTUS_URL` - URL Directus API (по умолчанию: http://localhost:8055)
+- `COLLAGE_OUTPUT_DIR` - директория для сохранения коллажей (по умолчанию: ./output)
 
 ## Структура проекта
 
@@ -75,7 +70,32 @@ src/
     └── logs.py             # Настройка логирования
 ```
 
-## Требования
+## API Endpoints
 
-- Python 3.13+
-- Изображения загружаются с URL, переданных от фронтенда или из Directus
+### Коллажи
+
+- `POST /v1/collage/generate` - Генерация коллажа из переданных данных об изображениях
+- `POST /v1/collage/generate/with-layout` - Генерация коллажа с пользовательским макетом
+- `POST /v1/collage/generate/from-directus` - Генерация коллажа из Directus
+- `POST /v1/collage/generate/batch` - Пакетная генерация коллажей
+- `POST /v1/collage/generate/batch-auto` - Автоматическая пакетная генерация
+
+## Тестирование
+
+```bash
+# Запуск тестов
+uv run pytest
+
+# Запуск тестов с покрытием
+uv run pytest --cov=src
+```
+
+## Линтинг
+
+```bash
+# Проверка кода
+uv run ruff check src/
+
+# Автоисправление
+uv run ruff check --fix src/
+```

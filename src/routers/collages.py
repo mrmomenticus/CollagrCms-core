@@ -13,6 +13,7 @@ from src.models.models import (
     CollageRequest,
     CollageWithLayoutRequest,
     DirectusConfig,
+    ImageData,
 )
 
 router = APIRouter(prefix="/v1/collage", tags=["collages"])
@@ -21,12 +22,11 @@ log = logging.getLogger(__name__)
 
 def _cleanup_file(path: str) -> None:
     """Удаляет файл если он существует."""
-    if path and Path(path).exists():
-        try:
-            Path(path).unlink()
-            log.debug("Файл коллажа удален: %s", path)
-        except Exception as e:
-            log.warning("Не удалось удалить файл коллажа %s: %s", path, e)
+    try:
+        Path(path).unlink(missing_ok=True)
+        log.debug("Файл коллажа удален: %s", path)
+    except Exception as e:
+        log.warning("Не удалось удалить файл коллажа %s: %s", path, e)
 
 
 @router.post("/generate")
@@ -34,27 +34,8 @@ async def generate_collage_from_data(
     request: CollageRequest,
     background_tasks: BackgroundTasks,
 ) -> FileResponse:
-    """Генерирует коллаж из переданных данных об изображениях.
-
-    Оптимизированный endpoint, который принимает все данные от фронтенда
-    и не требует дополнительных запросов к Directus.
-
-    Args:
-        request: Запрос с данными об изображениях и параметрах коллажа
-        background_tasks: Background tasks for cleanup
-
-    Returns:
-        Файл коллажа в формате JPEG
-
-    Raises:
-        HTTPException: 422 - Неверное количество изображений
-        HTTPException: 500 - Ошибка создания коллажа
-
-    """
-    log.info(
-        "API запрос: генерация коллажа из %d изображений",
-        len(request.images),
-    )
+    """Генерирует коллаж из переданных данных об изображениях."""
+    log.info("API запрос: генерация коллажа из %d изображений", len(request.images))
 
     collage_path = await CollageService.create_collage_from_data(
         request.images,
@@ -76,24 +57,7 @@ async def generate_collage_with_layout(
     request: CollageWithLayoutRequest,
     background_tasks: BackgroundTasks,
 ) -> FileResponse:
-    """Генерирует коллаж с пользовательским макетом.
-
-    Принимает данные об изображениях, макет холста и настройки отображения.
-    Позволяет создавать коллажи с произвольным расположением ячеек,
-    текстовыми надписями и настройками отображения.
-
-    Args:
-        request: Запрос с данными об изображениях, макете и настройках
-        background_tasks: Background tasks for cleanup
-
-    Returns:
-        Файл коллажа в формате JPEG
-
-    Raises:
-        HTTPException: 422 - Неверное количество изображений или макет
-        HTTPException: 500 - Ошибка создания коллажа
-
-    """
+    """Генерирует коллаж с пользовательским макетом."""
     log.info(
         "API запрос: генерация коллажа с макетом (%d изображений, %d ячеек)",
         len(request.images),
@@ -125,45 +89,22 @@ async def generate_collage_from_directus(
     product_ids: list[int] | None = Query(None, description="Список ID продуктов"),
     category_ids: list[int] | None = Query(None, description="Список ID категорий"),
     is_price: bool = Query(True, description="Добавлять ли цену на оверлей"),
-    background_tasks: BackgroundTasks = None,  # type: ignore[assignment]
 ) -> FileResponse:
-    """Генерирует коллаж, получая данные напрямую из Directus.
-
-    Оптимизированный endpoint, который делает один запрос к Directus
-    для получения всех необходимых данных.
-
-    Args:
-        directus_url: URL Directus API
-        directus_token: Токен авторизации (опционально)
-        directus_email: Email для авторизации (опционально)
-        directus_password: Пароль для авторизации (опционально)
-        product_ids: Список ID продуктов (опционально)
-        category_ids: Список ID категорий (опционально)
-        is_price: Добавлять ли цену на оверлей
-        background_tasks: Background tasks for cleanup
-
-    Returns:
-        Файл коллажа в формате JPEG
-
-    Raises:
-        HTTPException: 400 - Ошибка получения данных из Directus
-        HTTPException: 500 - Ошибка создания коллажа
-
-    """
+    """Генерирует коллаж, получая данные напрямую из Directus."""
     log.info(
         "API запрос: генерация коллажа из Directus (продукты: %s, категории: %s)",
         product_ids,
         category_ids,
     )
 
-    config = DirectusConfig(
+    directus_config = DirectusConfig(
         url=directus_url,
         token=directus_token,
         email=directus_email,
         password=directus_password,
     )
 
-    client = DirectusClient(config)
+    client = DirectusClient(directus_config)
 
     products = await client.get_products_with_images(
         product_ids=product_ids,
@@ -176,33 +117,29 @@ async def generate_collage_from_directus(
             detail="Продукты не найдены в Directus",
         )
 
-    from src.models.models import ImageData
-
-    images = []
+    images: list[ImageData] = []
     for product in products:
         product_files = product.get("product_files", [])
         for pf in product_files:
             file_id = pf.get("directus_files_id")
-            if file_id:
-                file_id_value = (
-                    file_id.get("id") if isinstance(file_id, dict) else file_id
-                )
-                category = product.get("category", {})
-                categories = (
-                    [category["name"]] if category and category.get("name") else []
-                )
+            if not file_id:
+                continue
 
-                images.append(
-                    ImageData(
-                        id=pf["id"],
-                        url=f"{directus_url}/assets/{file_id_value}",
-                        product_id=product["id"],
-                        product_name=product.get("name", ""),
-                        product_price=product.get("price", 0),
-                        product_description=product.get("description", ""),
-                        categories=categories,
-                    )
+            file_id_value = file_id.get("id") if isinstance(file_id, dict) else file_id
+            category = product.get("category", {})
+            categories = [category["name"]] if category and category.get("name") else []
+
+            images.append(
+                ImageData(
+                    id=pf["id"],
+                    url=f"{directus_url}/assets/{file_id_value}",
+                    product_id=product["id"],
+                    product_name=product.get("name", ""),
+                    product_price=product.get("price", 0),
+                    product_description=product.get("description", ""),
+                    categories=categories,
                 )
+            )
 
     if not images:
         raise HTTPException(
@@ -214,14 +151,8 @@ async def generate_collage_from_directus(
         images = images[:16]
         log.warning("Количество изображений ограничено до 16")
 
-    collage_path = await CollageService.create_collage_from_data(
-        images,
-        is_price,
-    )
+    collage_path = await CollageService.create_collage_from_data(images, is_price)
     log.info("API ответ: коллаж создан по пути %s", collage_path)
-
-    if background_tasks:
-        background_tasks.add_task(_cleanup_file, collage_path)
 
     return FileResponse(
         collage_path,
@@ -230,29 +161,12 @@ async def generate_collage_from_directus(
     )
 
 
-@router.post("/generate/batch")
+@router.post("/generate/batch", response_model=None)
 async def generate_batch_collages(
     requests: list[CollageWithLayoutRequest],
     background_tasks: BackgroundTasks,
-):
-    """Генерирует несколько коллажей и возвращает архив.
-
-    Принимает список запросов на генерацию коллажей.
-    Если запросов несколько - возвращает ZIP архив.
-    Если запрос один - возвращает одиночный файл (для обратной совместимости).
-
-    Args:
-        requests: Список запросов с данными об изображениях, макетах и настройках
-        background_tasks: Background tasks for cleanup
-
-    Returns:
-        ZIP архив с коллажами или одиночный файл JPEG
-
-    Raises:
-        HTTPException: 422 - Неверное количество изображений или макет
-        HTTPException: 500 - Ошибка создания коллажа
-
-    """
+) -> FileResponse | StreamingResponse:
+    """Генерирует несколько коллажей и возвращает архив."""
     log.info("API запрос: пакетная генерация %d коллажей", len(requests))
 
     if not requests:
@@ -261,7 +175,7 @@ async def generate_batch_collages(
             detail="Список запросов пуст",
         )
 
-    collage_paths = []
+    collage_paths: list[tuple[str, str]] = []
 
     try:
         for idx, req in enumerate(requests, start=1):
@@ -306,37 +220,16 @@ async def generate_batch_collages(
 
     except HTTPException:
         for _, path in collage_paths:
-            if Path(path).exists():
-                try:
-                    Path(path).unlink()
-                except Exception:
-                    pass
+            _cleanup_file(path)
         raise
 
 
-@router.post("/generate/batch-auto")
+@router.post("/generate/batch-auto", response_model=None)
 async def generate_batch_auto(
     request: CollageWithLayoutRequest,
     background_tasks: BackgroundTasks,
-):
-    """Генерирует несколько коллажей автоматически.
-
-    Изображения автоматически разбиваются на группы по количеству image-ячеек в макете.
-    Например: 16 изображений с макетом на 3 ячейки = 6 коллажей.
-    Если изображений меньше чем ячеек - создаётся один коллаж с незаполненными ячейками.
-
-    Args:
-        request: Запрос с данными об изображениях, макете и настройках
-        background_tasks: Background tasks for cleanup
-
-    Returns:
-        ZIP архив с коллажами или одиночный файл JPEG
-
-    Raises:
-        HTTPException: 422 - Неверное количество изображений или макет
-        HTTPException: 500 - Ошибка создания коллажа
-
-    """
+) -> FileResponse | StreamingResponse:
+    """Генерирует несколько коллажей автоматически."""
     log.info(
         "API запрос: автопакетная генерация (%d изображений)",
         len(request.images),

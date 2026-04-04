@@ -1,37 +1,18 @@
+from __future__ import annotations
+
 import logging
 import math
+from typing import TYPE_CHECKING
 
 from PIL import Image, ImageDraw
 
 from src.core.overlay import Overlay
-from src.models.models import (
-    CollageLayout,
-    CollageSettings,
-    ImageWithProduct,
-)
+from src.utils.colors import parse_hex_color
+
+if TYPE_CHECKING:
+    from src.models.models import CollageLayout, CollageSettings, ImageWithProduct
 
 log = logging.getLogger(__name__)
-
-
-def _parse_hex_color(hex_color: str) -> tuple[int, int, int]:
-    """Парсит hex цвет в RGB tuple.
-
-    Args:
-        hex_color: Hex цвет в формате '#RRGGBB'
-
-    Returns:
-        RGB tuple (R, G, B)
-
-
-    """
-    hex_color = hex_color.lstrip("#")
-    if len(hex_color) == 6:
-        return (
-            int(hex_color[0:2], 16),
-            int(hex_color[2:4], 16),
-            int(hex_color[4:6], 16),
-        )
-    return (53, 3, 61)
 
 
 class CollageCreator:
@@ -64,7 +45,9 @@ class CollageCreator:
                 min_diff = diff
         return best_cols, best_rows
 
-    def _resize_image_to_cell(self, img: Image.Image):
+    def _resize_image_to_cell(
+        self, img: Image.Image
+    ) -> tuple[Image.Image, tuple[int, int, int, int]]:
         """Изменяет размер изображения до 900x900 с сохранением пропорций и обрезкой (cover).
 
         Изображение масштабируется так, чтобы короткая сторона стала 900, затем обрезается по центру до 900x900.
@@ -129,7 +112,7 @@ class CollageCreator:
                 outline=self._border_color,
             )
         # Overlay для 900x900 всегда создается, но цена добавляется в зависимости от is_price
-        overlay = Overlay(self._cell_size, self._cell_size)
+        overlay = Overlay()
         # Размещаем изображения
         for idx, img_model in enumerate(image_models):
             try:
@@ -146,8 +129,8 @@ class CollageCreator:
                 x = col * (self._cell_size + self._cell_margin)
                 y = row * (self._cell_size + self._cell_margin)
                 collage.paste(cell_img, (x, y))
-            except Exception as e:
-                log.exception(f"Ошибка при обработке изображения {img_model.path}: {e}")
+            except Exception:
+                log.exception("Ошибка при обработке изображения %s", img_model.path)
                 raise
         collage.save(output_path, "JPEG", quality=95)
         log.info(
@@ -187,7 +170,7 @@ class CollageCreator:
         # Получаем размеры и цвет холста из макета
         canvas_width = layout.canvas.width
         canvas_height = layout.canvas.height
-        bg_color = _parse_hex_color(layout.canvas.background)
+        bg_color = parse_hex_color(layout.canvas.background)
 
         # Создаем изображение
         collage = Image.new(
@@ -240,7 +223,7 @@ class CollageCreator:
                             img = scaled_img
 
                         # Создаем оверлей для ячейки
-                        overlay = Overlay(cell_width, cell_height)
+                        overlay = Overlay()
 
                         # Получаем подписи из ячейки или используем дефолтные
                         captions = cell.captions if cell.captions is not None else []
@@ -331,8 +314,8 @@ class CollageCreator:
                                 font=font,
                             )
 
-            except Exception as e:
-                log.exception(f"Ошибка при обработке ячейки {cell.id}: {e}")
+            except Exception:
+                log.exception("Ошибка при обработке ячейки %s", cell.id)
                 raise
 
         collage.save(output_path, "JPEG", quality=95)

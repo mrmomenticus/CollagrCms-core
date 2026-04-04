@@ -1,25 +1,18 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from typing import Any, Self
+from typing import Any
 
 from dotenv import load_dotenv
 
+load_dotenv()
 
-class Config:
-    _instance = None
 
-    def __new__(cls) -> Self:
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self) -> None:
-        if not hasattr(self, "_initialized"):
-            load_dotenv()  # Load environment variables from .env file
-            self._initialized = True
+class _Config:
+    __slots__ = ()
 
     def get_config(self) -> dict[str, Any]:
-        # Return a dictionary with all configuration values
         return {
             "server": self.get_server_config(),
             "logger": self.get_logger_config(),
@@ -36,10 +29,6 @@ class Config:
         return os.getenv("DIRECTUS_URL", "http://localhost:8055")
 
     def get_collage_output_dir(self) -> Path:
-        """Returns the directory path for storing generated collages.
-        
-        Creates the directory if it doesn't exist.
-        """
         output_dir = Path(os.getenv("COLLAGE_OUTPUT_DIR", "./output"))
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
@@ -60,5 +49,4 @@ class Config:
         }
 
 
-# Create a singleton instance
-config = Config()
+config = _Config()

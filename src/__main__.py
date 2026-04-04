@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from src.routers.collages import router as collages_router
 from src.utils.config import config
@@ -35,6 +36,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @application.get("/health")
+    async def health_check():
+        return JSONResponse({"status": "healthy"})
 
     application.include_router(collages_router)
 

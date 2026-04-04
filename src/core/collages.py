@@ -32,9 +32,9 @@ async def _download_images(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, img_data in enumerate(images, start=1):
+                image_url = f"{config.get_directus_url().rstrip('/')}{img_data.url}"
+                log.debug("Скачивание изображения: %s", image_url)
                 try:
-                    image_url = f"{config.get_directus_url().rstrip('/')}{img_data.url}"
-                    log.debug("Скачивание изображения: %s", image_url)
                     response = await client.get(image_url)
                     response.raise_for_status()
 
@@ -63,10 +63,10 @@ async def _download_images(
                     log.debug("Изображение %d скачано: %s", idx, img_data.url)
 
                 except httpx.HTTPError as e:
-                    log.error("Ошибка скачивания изображения %s: %s", img_data.url, e)
+                    log.error("Ошибка скачивания изображения %s: %s", image_url, e)
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Ошибка скачивания изображения {config.get_directus_url().rstrip('/')}{img_data.url}: {e}",
+                        detail=f"Ошибка скачивания изображения {image_url}: {e}",
                     ) from e
     except HTTPException:
         shutil.rmtree(temp_dir, ignore_errors=True)

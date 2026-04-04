@@ -22,16 +22,21 @@ log = logging.getLogger(__name__)
 
 
 def _normalize_image_url(url: str) -> str:
-    """Нормализует URL изображения, добавляя базовый URL Directus если нужно."""
+    """Нормализует URL изображения.
+
+    Относительные пути (начинаются с '/') передаются через Caddy-прокси,
+    чтобы сохранить правила маршрутизации (авторизация, публичные права).
+    Абсолютные URL используются как есть.
+    """
     if url.startswith(("http://", "https://")):
         return url
 
-    directus_url = config.get_directus_url().rstrip("/")
     if url.startswith("/"):
-        normalized_url = url.replace("/directus-assets/", "/assets/")
-        return f"{directus_url}{normalized_url}"
+        proxy_url = config.get_proxy_url().rstrip("/")
+        return f"{proxy_url}{url}"
 
-    return f"{directus_url}/{url.lstrip('/')}"
+    proxy_url = config.get_proxy_url().rstrip("/")
+    return f"{proxy_url}/{url}"
 
 
 async def _download_images(

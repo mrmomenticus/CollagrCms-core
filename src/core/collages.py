@@ -20,6 +20,15 @@ from src.utils.config import config
 
 log = logging.getLogger(__name__)
 
+#TODO: пофиксить 
+def _transform_directus_url(url: str) -> str:
+    """Трансформирует URL Directus: /directus-assets → /assets, /directus-api удаляется."""
+    if url.startswith("/directus-assets"):
+        return url.replace("/directus-assets", "/assets", 1)
+    if url.startswith("/directus-api"):
+        return url.replace("/directus-api", "", 1)
+    return url
+
 
 async def _download_images(
     images: list[ImageData],
@@ -39,7 +48,8 @@ async def _download_images(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, img_data in enumerate(images, start=1):
-                image_url = f"{config.get_directus_url().rstrip('/')}{img_data.url}"
+                transformed_url = _transform_directus_url(img_data.url)
+                image_url = f"{config.get_directus_url().rstrip('/')}{transformed_url}"
                 log.info(
                     "Запрос к Directus: URL=%s, headers=%s, image_id=%s, product_id=%s",
                     image_url,

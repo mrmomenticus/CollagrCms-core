@@ -49,7 +49,10 @@ async def _download_images(
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, img_data in enumerate(images, start=1):
                 transformed_url = _transform_directus_url(img_data.url)
-                image_url = f"{config.get_directus_url().rstrip('/')}{transformed_url}"
+                if transformed_url.startswith(("http://", "https://")):
+                    image_url = transformed_url
+                else:
+                    image_url = f"{config.get_directus_url().rstrip('/')}{transformed_url}"
                 log.info(
                     "Запрос к Directus: URL=%s, headers=%s, image_id=%s, product_id=%s",
                     image_url,

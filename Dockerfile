@@ -12,12 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install uv
 
-COPY pyproject.toml uv.lock ./
-RUN uv venv /app/.venv && \
-    . /app/.venv/bin/activate && \
-    uv sync --frozen --no-dev
-
 COPY . .
+
+RUN rm -rf /app/.venv && \
+    uv venv /app/.venv && \
+    VIRTUAL_ENV=/app/.venv uv sync --frozen --no-dev
 
 ENV PYTHONPATH=/app
 ENV SERVER_HOST=0.0.0.0

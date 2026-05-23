@@ -142,9 +142,33 @@ class CollageCreator:
         )
         return output_path
 
+    def _resize_image_cover(
+        self,
+        img: Image.Image,
+        target_width: int,
+        target_height: int,
+    ) -> Image.Image:
+        """Масштабирует изображение по cover: короткая сторона заполняет ячейку, лишнее обрезается по центру."""
+        original_width, original_height = img.size
+        scale = max(
+            target_width / original_width,
+            target_height / original_height,
+        )
+        new_width = int(original_width * scale)
+        new_height = int(original_height * scale)
+
+        scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        left = (new_width - target_width) // 2
+        top = (new_height - target_height) // 2
+        right = left + target_width
+        bottom = top + target_height
+
+        return scaled_img.crop((left, top, right, bottom))
+
     def create_with_layout(
         self,
-        image_models: list[ImageWithProduct],
+        image_models: list[ImageWithProduct | None],
         layout: CollageLayout,
         settings: CollageSettings,
         output_path: str,
@@ -152,7 +176,7 @@ class CollageCreator:
         """Создает коллаж с пользовательским макетом.
 
         Args:
-            image_models: Список изображений с продуктами
+            image_models: Список изображений с продуктами (может содержать None для пустых ячеек)
             layout: Макет коллажа с ячейками
             settings: Настройки отображения
             output_path: Путь для сохранения коллажа
@@ -161,10 +185,11 @@ class CollageCreator:
             Путь к созданному коллажу
 
         """
-        image_count = len(image_models)
-        if image_count < 1 or image_count > 16:
+        valid_images = [img for img in image_models if img is not None]
+        image_count = len(valid_images)
+        if image_count < 1:
             raise ValueError(
-                f"Количество изображений должно быть от 1 до 16, получено: {image_count}",
+                "Количество изображений должно быть больше 0",
             )
 
         # Получаем размеры и цвет холста из макета
@@ -187,71 +212,74 @@ class CollageCreator:
                 outline=self._border_color,
             )
 
-        # Создаем словарь изображений по ID для быстрого доступа
-        images_by_id = {img.id: img for img in image_models}
+        # Создаем словарь изображений по ID для доступа через product_id
+        images_by_id = {img.id: img for img in valid_images}
 
         # Обрабатываем ячейки макета
         for cell in layout.cells:
             try:
                 if cell.type == "image":
-                    # Находим изображение по productId или по индексу ячейки
+                    # Находим изображение по product_id или по индексу ячейки
                     img_model = None
                     if cell.product_id:
                         # Ищем по productId
                         img_model = images_by_id.get(cell.product_id)
                     elif cell.index < len(image_models):
-                        # Ищем по индексу
+                        # Ищем по индексу (учитываем None как пустые ячейки)
                         img_model = image_models[cell.index]
 
-                    if img_model:
-                        img = Image.open(img_model.path)
+                    if img_model is None:
+                        # Пустая ячейка — пропускаем (ничего не рисуем)
+                        continue
 
-                        cell_width = int(cell.size.width)
-                        cell_height = int(cell.size.height)
+                    img = Image.open(img_model.path)
 
-                        scaled_img = img.resize(
-                            (cell_width, cell_height), Image.Resampling.LANCZOS
+                    cell_width = int(cell.size.width)
+                    cell_height = int(cell.size.height)
+
+                    img = self._resize_image_cover(
+                        img,
+                        cell_width,
+                        cell_height,
+                    )
+
+                    if cell.rotation != 0:
+                        img = img.rotate(
+                            cell.rotation,
+                            expand=True,
+                            resample=Image.Resampling.BICUBIC,
                         )
 
-                        if cell.rotation != 0:
-                            img = scaled_img.rotate(
-                                cell.rotation,
-                                expand=True,
-                                resample=Image.Resampling.BICUBIC,
-                            )
-                        else:
-                            img = scaled_img
+                    # Создаем оверлей для ячейки
+                    overlay = Overlay()
 
-                        # Создаем оверлей для ячейки
-                        overlay = Overlay()
+                    # Получаем подписи из ячейки или используем дефолтные
+                    captions = cell.captions if cell.captions is not None else []
 
-                        # Получаем подписи из ячейки или используем дефолтные
-                        captions = cell.captions if cell.captions is not None else []
+                    # Пропускаем overlay если нет подписей
+                    if captions:
+                        caption_style = cell.caption_style
+                        caption_opacity = (
+                            caption_style.per_cell_opacity
+                            if caption_style
+                            and caption_style.per_cell_opacity is not None
+                            else settings.caption_opacity
+                        )
 
-                        # Пропускаем overlay если нет подписей
-                        if captions:
-                            caption_style = cell.caption_style
-                            caption_opacity = (
-                                caption_style.per_cell_opacity
-                                if caption_style
-                                and caption_style.per_cell_opacity is not None
-                                else settings.caption_opacity
-                            )
+                        img = overlay.add_text_overlay(
+                            img,
+                            img_model,
+                            (0, 0, cell_width, cell_height),
+                            settings.is_price,
+                            captions,
+                            caption_style,
+                            caption_opacity,
+                        )
 
-                            img = overlay.add_text_overlay(
-                                img,
-                                img_model,
-                                (0, 0, cell_width, cell_height),
-                                settings.is_price,
-                                captions,
-                                caption_style,
-                                caption_opacity,
-                            )
-
-                        # Вставляем изображение на холст
-                        x = int(cell.position.x)
-                        y = int(cell.position.y)
-                        collage.paste(img, (x, y))
+                    # Вставляем изображение на холст
+                    x = int(cell.position.x)
+                    y = int(cell.position.y)
+                    collage.paste(img, (x, y))
 
                 elif cell.type == "text":
                     # Рисуем текстовую ячейку

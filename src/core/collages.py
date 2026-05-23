@@ -33,10 +33,10 @@ def _transform_directus_url(url: str) -> str:
 async def _download_images(
     images: list[ImageData],
     directus_token: str | None = None,
-) -> tuple[list[ImageWithProduct], Path]:
+) -> tuple[list[ImageWithProduct | None], Path]:
     """Скачивает изображения во временную папку и возвращает модели изображений."""
     temp_dir = Path(tempfile.mkdtemp(prefix="collage_images_"))
-    image_models: list[ImageWithProduct] = []
+    image_models: list[ImageWithProduct | None] = []
 
     headers = {}
     if directus_token:
@@ -48,6 +48,11 @@ async def _download_images(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, img_data in enumerate(images, start=1):
+                # Пропускаем пустые слоты (плейсхолдеры)
+                if img_data.id == -1 or not img_data.url:
+                    image_models.append(None)
+                    continue
+
                 transformed_url = _transform_directus_url(img_data.url)
                 if transformed_url.startswith(("http://", "https://")):
                     image_url = transformed_url
@@ -155,7 +160,8 @@ class CollageService:
             image_models, temp_dir = await _download_images(images, directus_token)
 
             try:
-                CollageCreator().create(image_models, str(collage_path), is_price)
+                valid_image_models = [img for img in image_models if img is not None]
+                CollageCreator().create(valid_image_models, str(collage_path), is_price)
                 log.info("Коллаж успешно создан: %s", collage_path)
             finally:
                 shutil.rmtree(temp_dir, ignore_errors=True)

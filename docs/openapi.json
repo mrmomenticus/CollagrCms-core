@@ -1,0 +1,549 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "CollagrCms API",
+    "description": "API для генерации коллажей",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/v1/collage/generate": {
+      "post": {
+        "tags": ["collages"],
+        "summary": "Generate Collage From Data",
+        "description": "Генерирует коллаж из переданных данных об изображениях.\n\nОптимизированный endpoint, который принимает все данные от фронтенда\nи не требует дополнительных запросов к Directus.\n\nArgs:\n    request: Запрос с данными об изображениях и параметрах коллажа\n\nReturns:\n    Файл коллажа в формате JPEG\n\nRaises:\n    HTTPException: 422 - Неверное количество изображений\n    HTTPException: 500 - Ошибка создания коллажа",
+        "operationId": "generate_collage_from_data_v1_collage_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CollageRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/collage/generate/with-layout": {
+      "post": {
+        "tags": ["collages"],
+        "summary": "Generate Collage With Layout",
+        "description": "Генерирует коллаж с пользовательским макетом.\n\nПринимает данные об изображениях, макет холста и настройки отображения.\nПозволяет создавать коллажи с произвольным расположением ячеек,\nтекстовыми надписями и настройками отображения.\n\nArgs:\n    request: Запрос с данными об изображениях, макете и настройках\n\nReturns:\n    Файл коллажа в формате JPEG\n\nRaises:\n    HTTPException: 422 - Неверное количество изображений или макет\n    HTTPException: 500 - Ошибка создания коллажа",
+        "operationId": "generate_collage_with_layout_v1_collage_generate_with_layout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollageWithLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/collage/generate/from-directus": {
+      "post": {
+        "tags": ["collages"],
+        "summary": "Generate Collage From Directus",
+        "description": "Генерирует коллаж, получая данные напрямую из Directus.\n\nОптимизированный endpoint, который делает один запрос к Directus\nдля получения всех необходимых данных.\n\nArgs:\n    directus_url: URL Directus API\n    directus_token: Токен авторизации (опционально)\n    directus_email: Email для авторизации (опционально)\n    directus_password: Пароль для авторизации (опционально)\n    product_ids: Список ID продуктов (опционально)\n    category_ids: Список ID категорий (опционально)\n    is_price: Добавлять ли цену на оверлей\n\nReturns:\n    Файл коллажа в формате JPEG\n\nRaises:\n    HTTPException: 400 - Ошибка получения данных из Directus\n    HTTPException: 500 - Ошибка создания коллажа",
+        "operationId": "generate_collage_from_directus_v1_collage_generate_from_directus_post",
+        "parameters": [
+          {
+            "name": "directus_url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "URL Directus API",
+              "title": "Directus Url"
+            },
+            "description": "URL Directus API"
+          },
+          {
+            "name": "directus_token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "Токен авторизации",
+              "title": "Directus Token"
+            },
+            "description": "Токен авторизации"
+          },
+          {
+            "name": "directus_email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "Email для авторизации",
+              "title": "Directus Email"
+            },
+            "description": "Email для авторизации"
+          },
+          {
+            "name": "directus_password",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "Пароль для авторизации",
+              "title": "Directus Password"
+            },
+            "description": "Пароль для авторизации"
+          },
+          {
+            "name": "product_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "array", "items": { "type": "integer" } },
+                { "type": "null" }
+              ],
+              "description": "Список ID продуктов",
+              "title": "Product Ids"
+            },
+            "description": "Список ID продуктов"
+          },
+          {
+            "name": "category_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "array", "items": { "type": "integer" } },
+                { "type": "null" }
+              ],
+              "description": "Список ID категорий",
+              "title": "Category Ids"
+            },
+            "description": "Список ID категорий"
+          },
+          {
+            "name": "is_price",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Добавлять ли цену на оверлей",
+              "default": true,
+              "title": "Is Price"
+            },
+            "description": "Добавлять ли цену на оверлей"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CanvasConfig": {
+        "properties": {
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "description": "Ширина холста",
+            "default": 800
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height",
+            "description": "Высота холста",
+            "default": 600
+          }
+        },
+        "type": "object",
+        "title": "CanvasConfig",
+        "description": "Конфигурация холста."
+      },
+      "CellPosition": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X",
+            "description": "Координата X"
+          },
+          "y": { "type": "number", "title": "Y", "description": "Координата Y" }
+        },
+        "type": "object",
+        "required": ["x", "y"],
+        "title": "CellPosition",
+        "description": "Позиция ячейки на холсте."
+      },
+      "CellSize": {
+        "properties": {
+          "width": {
+            "type": "number",
+            "title": "Width",
+            "description": "Ширина"
+          },
+          "height": {
+            "type": "number",
+            "title": "Height",
+            "description": "Высота"
+          }
+        },
+        "type": "object",
+        "required": ["width", "height"],
+        "title": "CellSize",
+        "description": "Размер ячейки."
+      },
+      "CollageLayout": {
+        "properties": {
+          "canvas": {
+            "$ref": "#/components/schemas/CanvasConfig",
+            "description": "Конфигурация холста"
+          },
+          "cells": {
+            "items": { "$ref": "#/components/schemas/LayoutCell" },
+            "type": "array",
+            "title": "Cells",
+            "description": "Список ячеек"
+          },
+          "metadata": {
+            "anyOf": [
+              { "additionalProperties": true, "type": "object" },
+              { "type": "null" }
+            ],
+            "title": "Metadata",
+            "description": "Метаданные макета"
+          }
+        },
+        "type": "object",
+        "required": ["canvas", "cells"],
+        "title": "CollageLayout",
+        "description": "Макет коллажа."
+      },
+      "CollageRequest": {
+        "properties": {
+          "images": {
+            "items": { "$ref": "#/components/schemas/ImageData" },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Images",
+            "description": "Список изображений для коллажа (от 1 до 16)"
+          },
+          "is_price": {
+            "type": "boolean",
+            "title": "Is Price",
+            "description": "Добавлять ли цену на оверлей",
+            "default": true
+          },
+          "batch_size": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "description": "Размер пакета для пакетной генерации",
+            "default": 16
+          }
+        },
+        "type": "object",
+        "required": ["images"],
+        "title": "CollageRequest",
+        "description": "Модель для запроса генерации коллажа с передачей данных от фронтенда."
+      },
+      "CollageSettings": {
+        "properties": {
+          "is_price": {
+            "type": "boolean",
+            "title": "Is Price",
+            "description": "Добавлять ли цену",
+            "default": true
+          },
+          "is_name": {
+            "type": "boolean",
+            "title": "Is Name",
+            "description": "Добавлять ли название",
+            "default": true
+          },
+          "is_category": {
+            "type": "boolean",
+            "title": "Is Category",
+            "description": "Добавлять ли категорию",
+            "default": true
+          },
+          "is_description": {
+            "type": "boolean",
+            "title": "Is Description",
+            "description": "Добавлять ли описание",
+            "default": false
+          },
+          "caption_opacity": {
+            "type": "integer",
+            "title": "Caption Opacity",
+            "description": "Прозрачность фона подписей (0-100)",
+            "default": 80,
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "type": "object",
+        "title": "CollageSettings",
+        "description": "Настройки генерации коллажа."
+      },
+      "CollageWithLayoutRequest": {
+        "properties": {
+          "images": {
+            "items": { "$ref": "#/components/schemas/ImageData" },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Images",
+            "description": "Список изображений для коллажа (от 1 до 16)"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/CollageLayout",
+            "description": "Макет коллажа"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/CollageSettings",
+            "description": "Настройки генерации"
+          }
+        },
+        "type": "object",
+        "required": ["images", "layout"],
+        "title": "CollageWithLayoutRequest",
+        "description": "Модель для запроса генерации коллажа с макетом."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": { "$ref": "#/components/schemas/ValidationError" },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ImageData": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "ID изображения"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "URL изображения"
+          },
+          "product_id": {
+            "type": "integer",
+            "title": "Product Id",
+            "description": "ID продукта"
+          },
+          "product_name": {
+            "type": "string",
+            "title": "Product Name",
+            "description": "Название продукта",
+            "default": ""
+          },
+          "product_price": {
+            "type": "integer",
+            "title": "Product Price",
+            "description": "Цена продукта",
+            "default": 0
+          },
+          "product_description": {
+            "type": "string",
+            "title": "Product Description",
+            "description": "Описание продукта",
+            "default": ""
+          },
+          "categories": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Categories",
+            "description": "Категории продукта"
+          }
+        },
+        "type": "object",
+        "required": ["id", "url", "product_id"],
+        "title": "ImageData",
+        "description": "Модель для передачи данных об изображении от фронтенда."
+      },
+      "LayoutCell": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Уникальный ID ячейки"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Тип ячейки: image или text"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "Индекс ячейки в макете"
+          },
+          "position": {
+            "$ref": "#/components/schemas/CellPosition",
+            "description": "Позиция ячейки"
+          },
+          "size": {
+            "$ref": "#/components/schemas/CellSize",
+            "description": "Размер ячейки"
+          },
+          "rotation": {
+            "type": "number",
+            "title": "Rotation",
+            "description": "Поворот в градусах",
+            "default": 0
+          },
+          "product_id": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Product Id",
+            "description": "ID продукта для привязки (опционально)"
+          },
+          "text_config": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/TextConfig" },
+              { "type": "null" }
+            ],
+            "description": "Конфигурация текста (для текстовых ячеек)"
+          },
+          "captions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Captions",
+            "description": "Типы подписей: name, description, price",
+            "default": []
+          },
+          "caption_style": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/CaptionStyle" },
+              { "type": "null" }
+            ],
+            "description": "Стиль подписей (для ячеек изображений)"
+          }
+        },
+        "type": "object",
+        "required": ["id", "type", "index", "position", "size"],
+        "title": "LayoutCell",
+        "description": "Ячейка макета коллажа."
+      },
+      "TextConfig": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Тип текста: price, name, description, category"
+          },
+          "font_size": {
+            "type": "integer",
+            "title": "Font Size",
+            "description": "Размер шрифта",
+            "default": 14
+          },
+          "color": {
+            "type": "string",
+            "title": "Color",
+            "description": "Цвет текста",
+            "default": "#1f2937"
+          }
+        },
+        "type": "object",
+        "required": ["type"],
+        "title": "TextConfig",
+        "description": "Конфигурация текстовой ячейки."
+      },
+      "CaptionStyle": {
+        "properties": {
+          "font_size": {
+            "type": "integer",
+            "title": "Font Size",
+            "description": "Размер шрифта подписи",
+            "default": 13
+          },
+          "color": {
+            "type": "string",
+            "title": "Color",
+            "description": "Цвет текста подписи",
+            "default": "#1f2937"
+          },
+          "background": {
+            "type": "string",
+            "title": "Background",
+            "description": "Цвет фона подписи",
+            "default": "#ffffff"
+          },
+          "per_cell_opacity": {
+            "type": "integer",
+            "title": "Per Cell Opacity",
+            "description": "Прозрачность фона (0-100)",
+            "default": 80,
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "type": "object",
+        "title": "CaptionStyle",
+        "description": "Стиль подписи под изображением."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": { "type": "string", "title": "Message" },
+          "type": { "type": "string", "title": "Error Type" }
+        },
+        "type": "object",
+        "required": ["loc", "msg", "type"],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

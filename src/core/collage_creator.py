@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import logging
 import math
+from typing import TYPE_CHECKING
 
 from PIL import Image, ImageDraw
 
 from src.core.overlay import Overlay
-from src.models.models import ImageWithProduct
+from src.utils.colors import parse_hex_color
+
+if TYPE_CHECKING:
+    from src.models.models import CollageLayout, CollageSettings, ImageWithProduct
 
 log = logging.getLogger(__name__)
 
@@ -39,25 +45,23 @@ class CollageCreator:
                 min_diff = diff
         return best_cols, best_rows
 
-    def _resize_image_to_cell(self, img: Image.Image):
-        """Изменяет размер изображения до 900x900 с сохранением пропорций и обрезкой.
+    def _resize_image_to_cell(
+        self, img: Image.Image
+    ) -> tuple[Image.Image, tuple[int, int, int, int]]:
+        """Изменяет размер изображения до 900x900 с сохранением пропорций и обрезкой (cover).
 
         Изображение масштабируется так, чтобы короткая сторона стала 900, затем обрезается по центру до 900x900.
         Возвращает картинку и box (0, 0, 900, 900) для совместимости с overlay.
         """
         original_width, original_height = img.size
 
-        # Определяем коэффициент масштабирования, чтобы короткая сторона стала 900
         scale_factor = self._cell_size / min(original_width, original_height)
 
-        # Новые размеры после масштабирования
         new_width = int(original_width * scale_factor)
         new_height = int(original_height * scale_factor)
 
-        # Масштабируем изображение
         scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-        # Обрезаем до 900x900 по центру
         left = (new_width - self._cell_size) // 2
         top = (new_height - self._cell_size) // 2
         right = left + self._cell_size
@@ -108,13 +112,12 @@ class CollageCreator:
                 outline=self._border_color,
             )
         # Overlay для 900x900 всегда создается, но цена добавляется в зависимости от is_price
-        overlay = Overlay(self._cell_size, self._cell_size)
+        overlay = Overlay()
         # Размещаем изображения
         for idx, img_model in enumerate(image_models):
             try:
                 img = Image.open(img_model.path)
                 cell_img, img_box = self._resize_image_to_cell(img)
-                # Всегда добавляем оверлей, но с ценой или без в зависимости от is_price
                 cell_img = overlay.add_text_overlay(
                     cell_img,
                     img_model,
@@ -126,8 +129,8 @@ class CollageCreator:
                 x = col * (self._cell_size + self._cell_margin)
                 y = row * (self._cell_size + self._cell_margin)
                 collage.paste(cell_img, (x, y))
-            except Exception as e:
-                log.exception(f"Ошибка при обработке изображения {img_model.path}: {e}")
+            except Exception:
+                log.exception("Ошибка при обработке изображения %s", img_model.path)
                 raise
         collage.save(output_path, "JPEG", quality=95)
         log.info(
@@ -136,5 +139,219 @@ class CollageCreator:
             grid_cols,
             grid_rows,
             image_count,
+        )
+        return output_path
+
+    def _resize_image_cover(
+        self,
+        img: Image.Image,
+        target_width: int,
+        target_height: int,
+    ) -> Image.Image:
+        """Масштабирует изображение по cover: короткая сторона заполняет ячейку, лишнее обрезается по центру."""
+        original_width, original_height = img.size
+        scale = max(
+            target_width / original_width,
+            target_height / original_height,
+        )
+        new_width = int(original_width * scale)
+        new_height = int(original_height * scale)
+
+        scaled_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        left = (new_width - target_width) // 2
+        top = (new_height - target_height) // 2
+        right = left + target_width
+        bottom = top + target_height
+
+        return scaled_img.crop((left, top, right, bottom))
+
+    def create_with_layout(
+        self,
+        image_models: list[ImageWithProduct | None],
+        layout: CollageLayout,
+        settings: CollageSettings,
+        output_path: str,
+    ) -> str:
+        """Создает коллаж с пользовательским макетом.
+
+        Args:
+            image_models: Список изображений с продуктами (может содержать None для пустых ячеек)
+            layout: Макет коллажа с ячейками
+            settings: Настройки отображения
+            output_path: Путь для сохранения коллажа
+
+        Returns:
+            Путь к созданному коллажу
+
+        """
+        valid_images = [img for img in image_models if img is not None]
+        image_count = len(valid_images)
+        if image_count < 1:
+            raise ValueError(
+                "Количество изображений должно быть больше 0",
+            )
+
+        # Получаем размеры и цвет холста из макета
+        canvas_width = layout.canvas.width
+        canvas_height = layout.canvas.height
+        bg_color = parse_hex_color(layout.canvas.background)
+
+        # Создаем изображение
+        collage = Image.new(
+            "RGB",
+            (canvas_width, canvas_height),
+            bg_color,
+        )
+        draw = ImageDraw.Draw(collage)
+
+        # Рисуем рамку
+        for i in range(self._border_thickness):
+            draw.rectangle(
+                [(i, i), (canvas_width - 1 - i, canvas_height - 1 - i)],
+                outline=self._border_color,
+            )
+
+        # Создаем словарь изображений по ID для доступа через product_id
+        images_by_id = {img.id: img for img in valid_images}
+
+        # Обрабатываем ячейки макета
+        for cell in layout.cells:
+            try:
+                if cell.type == "image":
+                    # Находим изображение по product_id или по индексу ячейки
+                    img_model = None
+                    if cell.product_id:
+                        # Ищем по productId
+                        img_model = images_by_id.get(cell.product_id)
+                    elif cell.index < len(image_models):
+                        # Ищем по индексу (учитываем None как пустые ячейки)
+                        img_model = image_models[cell.index]
+
+                    if img_model is None:
+                        # Пустая ячейка — пропускаем (ничего не рисуем)
+                        continue
+
+                    img = Image.open(img_model.path)
+
+                    cell_width = int(cell.size.width)
+                    cell_height = int(cell.size.height)
+
+                    img = self._resize_image_cover(
+                        img,
+                        cell_width,
+                        cell_height,
+                    )
+
+                    if cell.rotation != 0:
+                        img = img.rotate(
+                            cell.rotation,
+                            expand=True,
+                            resample=Image.Resampling.BICUBIC,
+                        )
+
+                    # Создаем оверлей для ячейки
+                    overlay = Overlay()
+
+                    # Получаем подписи из ячейки или используем дефолтные
+                    captions = cell.captions if cell.captions is not None else []
+
+                    # Пропускаем overlay если нет подписей
+                    if captions:
+                        caption_style = cell.caption_style
+                        caption_opacity = (
+                            caption_style.per_cell_opacity
+                            if caption_style
+                            and caption_style.per_cell_opacity is not None
+                            else settings.caption_opacity
+                        )
+
+                        img = overlay.add_text_overlay(
+                            img,
+                            img_model,
+                            (0, 0, cell_width, cell_height),
+                            settings.is_price,
+                            captions,
+                            caption_style,
+                            caption_opacity,
+                        )
+
+                    # Вставляем изображение на холст
+                    x = int(cell.position.x)
+                    y = int(cell.position.y)
+                    collage.paste(img, (x, y))
+
+                elif cell.type == "text":
+                    # Рисуем текстовую ячейку
+                    if cell.text_config:
+                        text_type = cell.text_config.type
+                        font_size = cell.text_config.font_size
+                        color = cell.text_config.color
+
+                        # Получаем текст для отображения
+                        text = ""
+                        img_model = None
+                        if cell.product_id:
+                            # Ищем по productId
+                            img_model = images_by_id.get(cell.product_id)
+                        elif cell.index < len(image_models):
+                            # Ищем по индексу
+                            img_model = image_models[cell.index]
+
+                        if img_model:
+                            if text_type == "price" and settings.is_price:
+                                text = f"{img_model.product.price} ₽"
+                            elif text_type == "name" and settings.is_name:
+                                text = img_model.product.name
+                            elif text_type == "category" and settings.is_category:
+                                text = ", ".join(img_model.product.category_names)
+                            elif text_type == "description" and settings.is_description:
+                                text = img_model.product.description
+
+                        if text:
+                            # Рисуем текст
+                            from PIL import ImageFont
+
+                            try:
+                                font = ImageFont.truetype(
+                                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                                    font_size,
+                                )
+                            except Exception:
+                                font = ImageFont.load_default()
+
+                            # Вычисляем размер текста для центрирования
+                            bbox = draw.textbbox((0, 0), text, font=font)
+                            text_width = bbox[2] - bbox[0]
+                            text_height = bbox[3] - bbox[1]
+
+                            # Центрируем текст в ячейке
+                            x = (
+                                int(cell.position.x)
+                                + (int(cell.size.width) - text_width) // 2
+                            )
+                            y = (
+                                int(cell.position.y)
+                                + (int(cell.size.height) - text_height) // 2
+                            )
+
+                            draw.text(
+                                (x, y),
+                                text,
+                                fill=color,
+                                font=font,
+                            )
+
+            except Exception:
+                log.exception("Ошибка при обработке ячейки %s", cell.id)
+                raise
+
+        collage.save(output_path, "JPEG", quality=95)
+        log.info(
+            "Коллаж с макетом сохранён в %s (размер: %sx%s, ячеек: %s)",
+            output_path,
+            canvas_width,
+            canvas_height,
+            len(layout.cells),
         )
         return output_path

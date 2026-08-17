@@ -1,189 +1,127 @@
-import textwrap
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
 
 from PIL import Image, ImageDraw, ImageFont
 
 from src.core.font import Font
-from src.models.models import ImageWithProduct
+from src.utils.colors import parse_hex_color
+
+if TYPE_CHECKING:
+    from src.models.models import CaptionStyle, ImageWithProduct
+
+log = logging.getLogger(__name__)
 
 
 class Overlay:
-    def __init__(self, collag_width: int, collaw_height: int):
-        self._collag_width = collag_width
-        self._collag_height = collaw_height
-        self._overlay_height_ratio = 0.25  # overlay = 1/4 высоты изображения
-        self._overlay_alpha = 128
+    __slots__ = ("_font", "_price_color", "_text_margin_x")
+
+    def __init__(self) -> None:
         self._text_margin_x = 30
-        self._price_color = (30, 30, 30)  # Темнее
-        self._desc_color = (20, 20, 20)  # Темнее
-        self._price_font_min = 20  # минимальный размер шрифта цены
-        self._desc_font_min = 10  # минимальный размер шрифта описания
-        self._price_font_overlay_ratio = 0.3  # цена: половина overlay
-        self._desc_font_overlay_ratio = 0.20  # описание: треть overlay
-        self._max_description_length = 50
-        self._max_chars_per_line = 25
-        self._line_spacing = 2
+        self._price_color = (30, 30, 30)
         self._font = Font()
 
-    def _find_max_font_size(
-        self,
-        draw,
-        text,
-        font_path,
-        max_width,
-        max_height,
-        bold=False,
-        min_size=10,
-        max_size=80,
-        wrap_width=25,
-        line_spacing=7,
-    ):
-        left, right = min_size, max_size
-        best_size = min_size
-        while left <= right:
-            mid = (left + right) // 2
-            try:
-                font = ImageFont.truetype(font_path, mid)
-            except Exception:
-                break
-            # Для описания — переносим по wrap_width
-            lines = textwrap.wrap(text, width=wrap_width)
-            total_height = 0
-            max_line_width = 0
-            for line in lines:
-                bbox = draw.textbbox((0, 0), line, font=font)
-                line_height = bbox[3] - bbox[1]
-                line_width = bbox[2] - bbox[0]
-                total_height += line_height + line_spacing
-                max_line_width = max(max_line_width, line_width)
-            if (
-                total_height - line_spacing <= max_height
-                and max_line_width <= max_width
-            ):
-                best_size = mid
-                left = mid + 1
-            else:
-                right = mid - 1
-        return best_size
-
-    def _get_overlay_box(self, img_size, img_box=None):
-        width, height = img_size
-        overlay_height = int(height * self._overlay_height_ratio)
-        if img_box is not None:
-            x_offset, y_offset, img_w, img_h = img_box
-            overlay_top = y_offset + img_h - min(overlay_height, img_h)
-            overlay_bottom = y_offset + img_h
-        else:
-            overlay_top = height - min(overlay_height, height)
-            overlay_bottom = height
-        return overlay_top, overlay_bottom, overlay_height, width, height
-
-    def _get_fonts(self, overlay_height):
-        font_path = self._font.get_font()
-        price_font_size = max(
-            self._price_font_min, int(overlay_height * self._price_font_overlay_ratio),
-        )
-        desc_font_size = max(
-            self._desc_font_min, int(overlay_height * self._desc_font_overlay_ratio),
-        )
-        price_font = ImageFont.truetype(font_path, price_font_size)
-        desc_font = ImageFont.truetype(font_path, desc_font_size)
-        return price_font, desc_font, price_font_size
-
     def add_text_overlay(
-        self, img: Image.Image, img_model: ImageWithProduct, img_box=None, is_price=True,
+        self,
+        img: Image.Image,
+        img_model: ImageWithProduct,
+        _img_box: tuple[int, int, int, int] | None = None,
+        is_price: bool = True,
+        captions: list[str] | None = None,
+        caption_style: CaptionStyle | None = None,
+        caption_opacity: int = 80,
     ) -> Image.Image:
-        img_with_overlay = img.copy()
-        overlay_top, overlay_bottom, overlay_height, width, height = (
-            self._get_overlay_box(img.size, img_box)
-        )
+        """Добавляет текстовый оверлей на изображение."""
+        show_captions = captions if captions is not None else []
+        if not show_captions:
+            return img
+
+        has_price = "price" in show_captions and is_price
+        has_name = "name" in show_captions
+        has_description = "description" in show_captions
+        has_category = "category" in show_captions
+
+        if not (has_price or has_name or has_description or has_category):
+            return img
+
+        width, height = img.size
         margin_x = self._text_margin_x
-        overlay_alpha = self._overlay_alpha
-        # Overlay
-        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        caption_padding = 4
+        base_font_size = (
+            caption_style.font_size if caption_style and caption_style.font_size else 13
+        )
+        font_size = base_font_size + caption_padding
+
+        total_caption_lines = sum(
+            1
+            for c in show_captions
+            if (
+                (c == "price" and is_price)
+                or c == "name"
+                or c == "description"
+                or c == "category"
+            )
+        )
+        caption_area_height = total_caption_lines * font_size + caption_padding * 2
+        overlay_top = height - caption_area_height
+        overlay_alpha = 255 * caption_opacity // 100
+
+        bg_color_rgb = (255, 255, 255)
+        if caption_style and caption_style.background:
+            bg_color_rgb = parse_hex_color(caption_style.background)
+
+        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
         draw_overlay.rectangle(
-            [(0, overlay_top), (width, overlay_bottom)],
-            fill=(255, 255, 255, overlay_alpha),
+            [(0, overlay_top), (width, height)],
+            fill=(*bg_color_rgb, overlay_alpha),
         )
         img_with_overlay = Image.alpha_composite(img.convert("RGBA"), overlay).convert(
-            "RGB",
+            "RGB"
         )
         draw = ImageDraw.Draw(img_with_overlay)
-        # Fonts
-        price_font, desc_font, price_font_size = self._get_fonts(overlay_height)
-        # Цена (если is_price=True)
-        price_y = overlay_top + 10
-        if is_price:
-            price_text = str(img_model.product.price) + " ₽"
-            draw.text(
-                (margin_x, price_y),
-                price_text,
-                font=price_font,
-                fill=self._price_color,
-            )
-        # Описание
-        desc_max_width = width - 2 * margin_x
-        desc_y = price_y + (price_font_size + 10 if is_price else 0)
-        desc_max_height = overlay_bottom - desc_y - 10
-        description = str(img_model.product.description)[: self._max_description_length]
-        fitted_text = self._fit_text_to_overlay(
-            draw,
-            description,
-            desc_font,
-            desc_max_width,
-            desc_max_height,
-            line_spacing=self._line_spacing,
-        )
-        self._draw_multiline_text(
-            draw,
-            fitted_text,
-            (margin_x, desc_y),
-            desc_font,
-            self._desc_color,
-            max_width=desc_max_width,
-            line_spacing=self._line_spacing,
-        )
+
+        text_color = self._price_color
+        if caption_style and caption_style.color:
+            text_color = parse_hex_color(caption_style.color)
+
+        try:
+            font = ImageFont.truetype(self._font.get_font(), base_font_size)
+        except Exception:
+            font = ImageFont.load_default()
+
+        text_y = overlay_top + caption_padding
+
+        for idx, caption in enumerate(show_captions):
+            match caption, is_price:
+                case ("price", True):
+                    text = f"{img_model.product.price} ₽"
+                case ("name", _):
+                    text = str(img_model.product.name)[:30]
+                case ("description", _):
+                    text = str(img_model.product.description)[:50]
+                case ("category", _):
+                    text = (
+                        img_model.product.category_names[0]
+                        if img_model.product.category_names
+                        else ""
+                    )
+                case _:
+                    continue
+
+            if text:
+                text_font = font
+                if idx == 0:
+                    try:
+                        bold_font_path = self._font.get_font_bold()
+                        if bold_font_path:
+                            text_font = ImageFont.truetype(
+                                bold_font_path, base_font_size
+                            )
+                    except Exception:
+                        log.debug("Не удалось загрузить жирный шрифт")
+                draw.text((margin_x, text_y), text, font=text_font, fill=text_color)
+                text_y += font_size + caption_padding
+
         return img_with_overlay
-
-    def _fit_text_to_overlay(
-        self, draw, text, font, max_width, max_height, line_spacing=7,
-    ):
-        text = text[: self._max_description_length]
-        lines = textwrap.wrap(
-            text,
-            width=self._max_chars_per_line,
-            break_long_words=True,
-            drop_whitespace=True,
-        )
-        # Ограничиваем до 2 строк
-        if len(lines) > 2:
-            lines = lines[:2]
-            # Добавляем троеточие к последней строке, если текст был обрезан
-            if not lines[1].endswith("..."):
-                # Обрезаем, чтобы влезло троеточие по ширине
-                for cut in range(len(lines[1]), 0, -1):
-                    test_line = lines[1][:cut] + "..."
-                    bbox = draw.textbbox((0, 0), test_line, font=font)
-                    if bbox[2] - bbox[0] <= max_width:
-                        lines[1] = test_line
-                        break
-        return "\n".join(lines)
-
-    def _draw_multiline_text(
-        self,
-        draw: ImageDraw.Draw,  # type: ignore
-        text: str,
-        position,
-        font,
-        color,
-        max_width,
-        line_spacing=5,
-    ):
-        x, y = position
-        for line in text.split("\n"):
-            if not line.strip():
-                y += font.size + line_spacing
-                continue
-            draw.text((x, y), line, font=font, fill=color)
-            bbox = draw.textbbox((0, 0), line, font=font)
-            y += bbox[3] - bbox[1] + line_spacing

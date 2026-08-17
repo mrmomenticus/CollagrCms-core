@@ -1,68 +1,64 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from src.database.connection import db
-from src.routers.categories import router as categories_router
 from src.routers.collages import router as collages_router
-from src.routers.images import router as images_router
-from src.routers.products import router as products_router
 from src.utils.config import config
 from src.utils.logs import LoggerConfigurator
 
-# Создаем основное приложение FastAPI
-app = FastAPI(
-    title="CollagrCms API",
-    version="0.2.0",
-    description="Рефакторированный API для системы управления коллажами",
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
 
-# Добавляем поддержку CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # В продакшене следует указать конкретные домены
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Подключаем роутеры для каждого модуля
-app.include_router(categories_router)
-app.include_router(products_router)
-app.include_router(images_router)
-app.include_router(collages_router)
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan context manager for startup/shutdown events."""
+    LoggerConfigurator().configure()
+    yield None
 
 
-def create_url() -> str:
-    db_config = config.get_database_config()
-    return (
-        f"postgresql+asyncpg://{db_config['user']}:{db_config['password']}@"
-        f"{db_config['host']}:{db_config['port']}/{db_config['name']}"
+def create_app() -> FastAPI:
+    """Создает и настраивает FastAPI приложение."""
+    application = FastAPI(
+        title="CollagrCms API",
+        version="0.2.0",
+        description="API для генерации коллажей",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-@app.on_event("startup")
-async def startup_event():
-    LoggerConfigurator().configure()
-    # Инициализация базы данных
-    await db.connect(create_url())
-    await db.init_database()
+    @application.get("/health")
+    async def health_check():
+        return JSONResponse({"status": "healthy"})
+
+    application.include_router(collages_router)
+
+    return application
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    await db.close()
+app = create_app()
 
 
-if __name__ == "__main__":
-    # Запуск через uvicorn
+def main() -> None:
+    """Entry point для запуска приложения."""
     server_config = config.get_server_config()
-    LoggerConfigurator().configure()
     uvicorn.run(
         "src.__main__:app",
         host=server_config.get("host", "0.0.0.0"),
         port=server_config.get("port", 8000),
         log_level="debug" if server_config.get("debug", False) else "info",
     )
+
+
+if __name__ == "__main__":
+    main()

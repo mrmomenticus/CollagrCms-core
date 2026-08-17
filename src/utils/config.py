@@ -1,38 +1,21 @@
-import logging
+from __future__ import annotations
+
 import os
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 
+load_dotenv()
 
-class Config:
-    _instance = None
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def __init__(self) -> None:
-        if not hasattr(self, "_initialized"):
-            load_dotenv()  # Load environment variables from .env file
-            self._initialized = True
+class _Config:
+    __slots__ = ()
 
     def get_config(self) -> dict[str, Any]:
-        # Return a dictionary with all configuration values
         return {
-            "database": self.get_database_config(),
             "server": self.get_server_config(),
             "logger": self.get_logger_config(),
-        }
-
-    def get_database_config(self) -> dict[str, Any]:
-        return {
-            "user": os.getenv("DB_USER", "postgres"),
-            "password": os.getenv("DB_PASSWORD", "postgres"),
-            "host": os.getenv("DB_HOST", "localhost"),
-            "port": int(os.getenv("DB_PORT", "5432")),
-            "name": os.getenv("DB_NAME", "collagrcms"),
         }
 
     def get_server_config(self) -> dict[str, Any]:
@@ -41,6 +24,14 @@ class Config:
             "port": int(os.getenv("SERVER_PORT", "8000")),
             "debug": os.getenv("DEBUG", "False").lower() in ("true", "1", "yes", "on"),
         }
+
+    def get_directus_url(self) -> str:
+        return os.getenv("DIRECTUS_URL", "http://localhost")
+
+    def get_collage_output_dir(self) -> Path:
+        output_dir = Path(os.getenv("COLLAGE_OUTPUT_DIR", "./output"))
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
 
     def get_logger_config(self) -> dict[str, Any]:
         return {
@@ -58,5 +49,4 @@ class Config:
         }
 
 
-# Create a singleton instance
-config = Config()
+config = _Config()

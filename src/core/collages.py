@@ -1,693 +1,275 @@
-import glob
 import logging
-import os
-import pathlib
 import shutil
 import tempfile
 import uuid
-import zipfile
+from pathlib import Path
 
+import httpx
 from fastapi import HTTPException, status
 
 from src.core.collage_creator import CollageCreator
-from src.core.images import ImageService
-from src.models.models import CollageInfoResponse, ImageWithProduct
+from src.models.models import (
+    Category,
+    CollageLayout,
+    CollageSettings,
+    ImageData,
+    ImageWithProduct,
+    Product,
+)
+from src.utils.config import config
 
 log = logging.getLogger(__name__)
+
+#TODO: пофиксить 
+def _transform_directus_url(url: str) -> str:
+    """Трансформирует URL Directus: /directus-assets → /assets, /directus-api удаляется."""
+    if url.startswith("/directus-assets"):
+        return url.replace("/directus-assets", "/assets", 1)
+    if url.startswith("/directus-api"):
+        return url.replace("/directus-api", "", 1)
+    return url
+
+
+async def _download_images(
+    images: list[ImageData],
+    directus_token: str | None = None,
+) -> tuple[list[ImageWithProduct | None], Path]:
+    """Скачивает изображения во временную папку и возвращает модели изображений."""
+    temp_dir = Path(tempfile.mkdtemp(prefix="collage_images_"))
+    image_models: list[ImageWithProduct | None] = []
+
+    headers = {}
+    if directus_token:
+        headers["Authorization"] = f"Bearer {directus_token}"
+        log.info("Токен Directus получен, будет использован для запросов")
+    else:
+        log.warning("Токен Directus НЕ получен! directus_token=%s", directus_token)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for idx, img_data in enumerate(images, start=1):
+                # Пропускаем пустые слоты (плейсхолдеры)
+                if img_data.id == -1 or not img_data.url:
+                    image_models.append(None)
+                    continue
+
+                transformed_url = _transform_directus_url(img_data.url)
+                if transformed_url.startswith(("http://", "https://")):
+                    image_url = transformed_url
+                else:
+                    image_url = f"{config.get_directus_url().rstrip('/')}{transformed_url}"
+                log.info(
+                    "Запрос к Directus: URL=%s, headers=%s, image_id=%s, product_id=%s",
+                    image_url,
+                    {"Authorization": "Bearer <token>"}
+                    if headers.get("Authorization")
+                    else {},
+                    img_data.id,
+                    img_data.product_id,
+                )
+                try:
+                    response = await client.get(image_url, headers=headers)
+                    response.raise_for_status()
+
+                    temp_file = temp_dir / f"image_{idx}.jpg"
+                    temp_file.write_bytes(response.content)
+
+                    log.info(
+                        "Успешно скачано изображение: URL=%s, size=%d bytes, image_id=%s",
+                        image_url,
+                        len(response.content),
+                        img_data.id,
+                    )
+
+                    categories = [
+                        Category(id=i, name=cat_name, description=None)
+                        for i, cat_name in enumerate(img_data.categories, start=1)
+                    ]
+                    product = Product(
+                        id=img_data.product_id,
+                        name=img_data.product_name,
+                        description=img_data.product_description,
+                        price=img_data.product_price,
+                        categories=categories,
+                    )
+                    image_models.append(
+                        ImageWithProduct(
+                            id=img_data.id,
+                            product_id=img_data.product_id,
+                            path=str(temp_file),
+                            product=product,
+                        )
+                    )
+                    log.debug("Изображение %d скачано: %s", idx, img_data.url)
+
+                except httpx.HTTPError as e:
+                    if isinstance(e, httpx.HTTPStatusError):
+                        log.error(
+                            "Ошибка скачивания изображения: URL=%s, headers_sent=%s, status_code=%s, error=%s",
+                            image_url,
+                            {"Authorization": "Bearer <token>"}
+                            if headers.get("Authorization")
+                            else {},
+                            e.response.status_code,
+                            e,
+                        )
+                    else:
+                        log.error(
+                            "Ошибка скачивания изображения: URL=%s, headers_sent=%s, error=%s",
+                            image_url,
+                            {"Authorization": "Bearer <token>"}
+                            if headers.get("Authorization")
+                            else {},
+                            e,
+                        )
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Ошибка скачивания изображения {image_url}: {e}",
+                    ) from e
+    except HTTPException:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise
+
+    return image_models, temp_dir
 
 
 class CollageService:
     """Сервис для работы с коллажами."""
 
     @staticmethod
-    async def create_collage_by_ids(
-        list_id: list[int],
-        filename: str = "collage.jpg",
+    async def create_collage_from_data(
+        images: list[ImageData],
         is_price: bool = True,
+        directus_token: str | None = None,
     ) -> str:
-        """Создает коллаж из выбранных изображений по их ID.
+        """Создает коллаж из переданных данных об изображениях."""
+        log.info("Создание коллажа из %d изображений", len(images))
 
-        Args:
-            list_id: Список ID изображений (от 1 до 16)
-            filename: Имя файла коллажа
-            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
-
-        Returns:
-            Путь к созданному коллажу
-
-        Raises:
-            CollageCreationError: Если ошибка создания коллажа
-            ImageNotFoundError: Если изображения не найдены
-
-        """
-        log.info(f"Создание коллажа из {len(list_id)} изображений")
-
-        if len(list_id) < 1 or len(list_id) > 16:
-            error_msg = f"Количество изображений должно быть от 1 до 16, получено: {len(list_id)}"
-            log.warning(error_msg)
+        if not images:
+            log.warning("Список изображений пуст")
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=error_msg,
+                detail="Список изображений не может быть пустым",
             )
 
-        try:
-            # Получаем изображения с продуктами
-            images_db = await ImageService.get_images_by_ids(list_id_images=list_id)
-
-            # Проверяем, что все изображения найдены
-            if len(images_db) != len(list_id):
-                found_ids = [img.id for img in images_db]
-                missing_ids = [img_id for img_id in list_id if img_id not in found_ids]
-                error_msg = f"Изображения с ID {missing_ids} не найдены"
-                log.warning(error_msg)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_msg,
-                )
-
-            # Создаем модели для коллажа
-            image_models = [ImageWithProduct.model_validate(img) for img in images_db]
-
-            # Создаем коллаж
-            collage_path = CollageCreator().create(image_models, filename, is_price)
-            log.info("Коллаж успешно создан: %s", collage_path)
-            return collage_path
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.exception("Ошибка при создании коллажа: %s", e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Ошибка при создании коллажа: {e}",
-            ) from e
-
-    @staticmethod
-    async def get_all_products_info() -> CollageInfoResponse | None:
-        """Возвращает информацию о всех доступных товарах для создания коллажей.
-
-        Returns:
-            Словарь с информацией о товарах и возможностях создания коллажей
-
-        """
-        log.debug("Получение информации о всех продуктах для коллажей")
-        # Получаем все изображения с товарами
-        all_images_db = await ImageService.get_all_images_with_products()
-        if not all_images_db:
-            log.warning("Products not found")
-            return None
-        total_images = len(all_images_db)
-        batch_size = 16
-        total_batches = (total_images + batch_size - 1) // batch_size
-        # Формируем информацию о товарах
-        products_info = ImageService.format_products_info(all_images_db)
-        result = CollageInfoResponse(
-            total_images=total_images,
-            total_batches=total_batches,
-            batch_size=batch_size,
-            has_images=True,
-            products=products_info,
-            categories=None,
-            message=f"Found {total_images} products. Can create {total_batches} collages with {batch_size} products each.",
-        )
-        log.debug("Информация о продуктах получена: %s товаров", total_images)
-        return result
-
-    @staticmethod
-    async def get_products_by_categories(
-        category_names: list[str],
-    ) -> CollageInfoResponse:
-        """Возвращает информацию о товарах по заданным категориям для создания коллажей.
-
-        Args:
-            category_names: Список названий категорий для фильтрации
-
-        Returns:
-            Словарь с информацией о товарах и возможностях создания коллажей
-
-        """
-        log.debug(
-            "Получение информации о продуктах для категорий: %s",
-            category_names,
+        collage_path = (
+            config.get_collage_output_dir() / f"collage_{uuid.uuid4().hex}.jpg"
         )
 
         try:
-            # Получаем все изображения с товарами
-            all_images_db = await ImageService.get_all_images_with_products()
+            image_models, temp_dir = await _download_images(images, directus_token)
 
-            if not all_images_db:
-                return CollageInfoResponse(
-                    total_images=0,
-                    total_batches=0,
-                    batch_size=16,
-                    has_images=False,
-                    message="Products not found",
-                    products=None,
-                    categories=None,
-                )
-            filtered_images_db = all_images_db
-            if category_names:
-                filtered_images_db = [
-                    img
-                    for img in all_images_db
-                    if any(cat.name in category_names for cat in img.product.categories)
-                ]
-
-            if not filtered_images_db:
-                log.info("Products not found for categories: %s", category_names)
-                return CollageInfoResponse(
-                    total_images=0,
-                    total_batches=0,
-                    batch_size=16,
-                    has_images=False,
-                    categories=category_names,
-                    message=f"Products not found for categories: {category_names}",
-                    products=None,
-                )
-
-            total_images = len(filtered_images_db)
-            batch_size = 16
-            total_batches = (total_images + batch_size - 1) // batch_size
-
-            # Формируем информацию о товарах
-            products_info = ImageService.format_products_info(filtered_images_db)
-
-            result = CollageInfoResponse(
-                total_images=total_images,
-                total_batches=total_batches,
-                batch_size=batch_size,
-                has_images=True,
-                categories=category_names,
-                products=products_info,
-                message=f"Found {total_images} products in categories {category_names}. Can create {total_batches} collages with {batch_size} products each.",
-            )
-
-            log.info(
-                "Информация о продуктах для категорий получена: %s товаров",
-                total_images,
-            )
-            return result
-
-        except Exception as e:
-            log.exception(
-                "Ошибка при получении информации о продуктах по категориям: %s",
-                e,
-            )
-            raise
-
-    @staticmethod
-    async def create_batch_collage(
-        batch_size: int = 16,
-        start_index: int = 0,
-        is_price: bool = True,
-        category_names: list[str] | None = None,
-    ) -> tuple[str, dict]:
-        """Создает коллаж из текущего пакета товаров
-
-        Args:
-            batch_size: Размер пакета (по умолчанию 16)
-            start_index: Начальный индекс для обработки
-            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
-            category_names: Список названий категорий для фильтрации товаров
-
-        Returns:
-            Кортеж (путь_к_коллажу, информация_о_пакете)
-
-        Raises:
-            CollageCreationError: Если ошибка создания коллажа
-            ImageNotFoundError: Если товары не найдены
-
-        """
-        if category_names:
-            log.info(
-                "Создание коллажа пакета по категориям: %s, размер %s, начальный индекс %s",
-                category_names,
-                batch_size,
-                start_index,
-            )
-        else:
-            log.info(
-                "Создание коллажа пакета: размер %s, начальный индекс %s",
-                batch_size,
-                start_index,
-            )
-
-        try:
-            # Получаем изображения с товарами, возможно, отфильтрованные по категориям
-            all_images_db = await ImageService.get_all_images_with_products()
-
-            if not all_images_db:
-                log.warning("Products not found")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Products not found",
-                )
-
-            # Фильтруем по категориям, если указаны
-            if category_names:
-                all_images_db = [
-                    img
-                    for img in all_images_db
-                    if any(cat.name in category_names for cat in img.product.categories)
-                ]
-
-            if not all_images_db:
-                log.warning("Products not found for categories: %s", category_names)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Products not found for categories: {category_names}",
-                )
-
-            total_images = len(all_images_db)
-            total_batches = (total_images + batch_size - 1) // batch_size
-
-            # Проверяем, не выходит ли start_index за пределы
-            if start_index >= total_images:
-                error_msg = f"Начальный индекс {start_index} превышает общее количество товаров ({total_images})"
-                log.warning(error_msg)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_msg,
-                )
-
-            # Обрабатываем текущий пакет
-            end_index = min(start_index + batch_size, total_images)
-            current_batch = all_images_db[start_index:end_index]
-
-            # Создаем коллаж для текущего пакета
-            image_models = [
-                ImageWithProduct.model_validate(img) for img in current_batch
-            ]
-
-            # Генерируем уникальное имя файла
-            batch_number = start_index // batch_size + 1
-            collage_filename = (
-                f"collage_batch_{batch_number}_{uuid.uuid4().hex[:8]}.jpg"
-            )
-
-            # Создаем временный файл
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-                collage_path = CollageCreator().create(
-                    image_models,
-                    tmp_file.name,
-                    is_price,
-                )
-
-            # Информация о пакете
-            batch_info = {
-                "batch_number": batch_number,
-                "total_batches": total_batches,
-                "processed_images": len(current_batch),
-                "total_images": total_images,
-                "start_index": start_index,
-                "end_index": end_index,
-                "has_more": end_index < total_images,
-                "next_start_index": end_index if end_index < total_images else -1,
-                "filename": collage_filename,
-                "categories": category_names,
-                "message": f"Collage {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
-            }
-
-            log.info("Коллаж пакета создан: %s", collage_filename)
-            return collage_path, batch_info
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            log.exception("Ошибка при создании коллажа пакета: %s", e)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Ошибка при создании коллажа пакета: {e}",
-            ) from e
-
-    @staticmethod
-    async def create_all_collages_zip(
-        batch_size: int = 16,
-        is_price: bool = True,
-        category_names: list[str] | None = None,
-    ) -> tuple[str, dict]:
-        """Создает все коллажи из всех товаров и упаковывает в ZIP-архив
-
-        Args:
-            batch_size: Размер пакета (по умолчанию 16)
-            is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
-            category_names: Список названий категорий для фильтрации товаров
-
-        Returns:
-            Кортеж (путь_к_zip_файлу, информация_о_создании)
-
-        Raises:
-            CollageCreationError: Если ошибка создания коллажей
-            ImageNotFoundError: Если товары не найдены
-
-        """
-        if category_names:
-            log.info(
-                "Создание всех коллажей в ZIP-архиве по категориям: %s с размером пакета %s",
-                category_names,
-                batch_size,
-            )
-        else:
-            log.info(
-                "Создание всех коллажей в ZIP-архиве с размером пакета %s",
-                batch_size,
-            )
-
-        try:
-            # Получаем все изображения с товарами
-            all_images_db = await ImageService.get_all_images_with_products()
-
-            if not all_images_db:
-                log.warning("Products not found")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Products not found",
-                )
-
-            # Фильтруем по категориям, если указаны
-            if category_names:
-                all_images_db = [
-                    img
-                    for img in all_images_db
-                    if any(cat.name in category_names for cat in img.product.categories)
-                ]
-
-            if not all_images_db:
-                log.warning("Products not found for categories: %s", category_names)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Products not found for categories: {category_names}",
-                )
-
-            # Создаем временную папку для коллажей
-            temp_collages_dir = tempfile.mkdtemp(prefix="collages_")
-
-            total_images = len(all_images_db)
-            total_batches = (total_images + batch_size - 1) // batch_size
-
-            # Создаем временный ZIP-файл
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip:
-                zip_path = tmp_zip.name
-
-                with zipfile.ZipFile(zip_path, "w") as zip_file:
-                    for batch_num in range(total_batches):
-                        start_index = batch_num * batch_size
-                        end_index = min(start_index + batch_size, total_images)
-                        current_batch = all_images_db[start_index:end_index]
-
-                        # Создаем коллаж для текущего пакета
-                        image_models = [
-                            ImageWithProduct.model_validate(img)
-                            for img in current_batch
-                        ]
-
-                        # Генерируем уникальное имя файла
-                        collage_filename = (
-                            f"collage_batch_{batch_num + 1}_{uuid.uuid4().hex[:8]}.jpg"
-                        )
-                        collage_path = os.path.join(temp_collages_dir, collage_filename)
-
-                        CollageCreator().create(image_models, collage_path, is_price)
-
-                        # Добавляем файл в ZIP-архив
-                        zip_file.write(collage_path, collage_filename)
-
-                        log.info(
-                            f"Создан коллаж {batch_num + 1}/{total_batches}: {collage_filename}",
-                        )
-
-            # Удаляем временную папку с коллажами
             try:
-                if pathlib.Path(temp_collages_dir).exists():
-                    shutil.rmtree(temp_collages_dir)
-            except Exception as e:
-                log.warning(
-                    "Не удалось удалить временную папку %s: %s",
-                    temp_collages_dir,
-                    e,
-                )
+                valid_image_models = [img for img in image_models if img is not None]
+                CollageCreator().create(valid_image_models, str(collage_path), is_price)
+                log.info("Коллаж успешно создан: %s", collage_path)
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                log.debug("Временная папка удалена: %s", temp_dir)
 
-            # Информация о создании
-            creation_info = {
-                "total_batches": total_batches,
-                "total_images": total_images,
-                "batch_size": batch_size,
-                "categories": category_names,
-                "zip_filename": f"all_collages_{uuid.uuid4().hex[:8]}.zip",
-                "message": f"Created {total_batches} collages from {total_images} products in categories {category_names}",
-            }
-
-            log.info(
-                f"Все коллажи созданы и упакованы в ZIP: {creation_info['zip_filename']}",
-            )
-            return zip_path, creation_info
+            return str(collage_path)
 
         except HTTPException:
             raise
-        except Exception as e:
-            log.exception("Ошибка при создании всех коллажей: %s", e)
+        except Exception:
+            log.exception("Ошибка при создании коллажа")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Ошибка при создании всех коллажей: {e}",
-            ) from e
+                detail="Ошибка при создании коллажа",
+            ) from None
 
     @staticmethod
-    async def get_batch_info(
-        start_index: int = 0,
-        batch_size: int = 16,
-        category_names: list[str] | None = None,
-    ) -> dict:
-        """Возвращает информацию о текущем пакете товаров без создания коллажа
+    async def create_collage_with_layout(
+        images: list[ImageData],
+        layout: CollageLayout,
+        settings: CollageSettings,
+        directus_token: str | None = None,
+    ) -> str:
+        """Создает коллаж с пользовательским макетом."""
+        log.info("Создание коллажа с макетом из %d изображений", len(images))
 
-        Args:
-            start_index: Начальный индекс для обработки
-            batch_size: Размер пакета (по умолчанию 16)
-            category_names: Список названий категорий для фильтрации товаров
-
-        Returns:
-            Информация о текущем пакете
-
-        Raises:
-            CollageCreationError: Если индекс выходит за пределы
-            ImageNotFoundError: Если товары не найдены
-
-        """
-        if category_names:
-            log.info(
-                "Получение информации о пакете по категориям: %s, индекс %s, размер %s",
-                category_names,
-                start_index,
-                batch_size,
+        if not images:
+            log.warning("Список изображений пуст")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Список изображений не может быть пустым",
             )
-        else:
-            log.info(
-                "Получение информации о пакете: индекс %s, размер %s",
-                start_index,
-                batch_size,
-            )
+
+        collage_path = (
+            config.get_collage_output_dir() / f"collage_{uuid.uuid4().hex}.jpg"
+        )
 
         try:
-            # Получаем все изображения с товарами
-            all_images_db = await ImageService.get_all_images_with_products()
+            image_models, temp_dir = await _download_images(images, directus_token)
 
-            if not all_images_db:
-                log.warning("Products not found")
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Products not found",
+            try:
+                CollageCreator().create_with_layout(
+                    image_models,
+                    layout,
+                    settings,
+                    str(collage_path),
                 )
+                log.info("Коллаж с макетом успешно создан: %s", collage_path)
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                log.debug("Временная папка удалена: %s", temp_dir)
 
-            # Фильтруем по категориям, если указаны
-            if category_names:
-                all_images_db = [
-                    img
-                    for img in all_images_db
-                    if any(cat.name in category_names for cat in img.product.categories)
-                ]
-
-            if not all_images_db:
-                log.warning("Products not found for categories: %s", category_names)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Products not found for categories: {category_names}",
-                )
-
-            total_images = len(all_images_db)
-            total_batches = (total_images + batch_size - 1) // batch_size
-
-            # Проверяем, не выходит ли start_index за пределы
-            if start_index >= total_images:
-                error_msg = f"Начальный индекс {start_index} превышает общее количество товаров ({total_images})"
-                log.warning(error_msg)
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=error_msg,
-                )
-
-            # Обрабатываем текущий пакет
-            end_index = min(start_index + batch_size, total_images)
-            current_batch = all_images_db[start_index:end_index]
-
-            # Формируем информацию о товарах в текущем пакете
-            batch_products = ImageService.format_products_info(current_batch)
-
-            # Проверяем, есть ли ещё пакеты для обработки
-            has_more = end_index < total_images
-            next_start_index = end_index if has_more else None
-            batch_number = start_index // batch_size + 1
-
-            result = {
-                "current_batch": batch_number,
-                "total_batches": total_batches,
-                "processed_images": len(current_batch),
-                "total_images": total_images,
-                "start_index": start_index,
-                "end_index": end_index,
-                "has_more": has_more,
-                "next_start_index": next_start_index,
-                "batch_products": batch_products,
-                "categories": category_names,
-                "message": f"Batch {batch_number} of {total_batches} (products {start_index + 1}-{end_index} of {total_images})",
-            }
-
-            log.info(
-                "Информация о пакете получена: пакет %s/%s",
-                batch_number,
-                total_batches,
-            )
-            return result
+            return str(collage_path)
 
         except HTTPException:
             raise
-        except Exception as e:
-            log.exception("Ошибка при получении информации о пакете: %s", e)
-            raise
+        except Exception:
+            log.exception("Ошибка при создании коллажа с макетом")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Ошибка при создании коллажа",
+            ) from None
 
     @staticmethod
-    async def get_batch_processing_status(
-        category_names: list[str] | None = None,
-    ) -> CollageInfoResponse:
-        """Возвращает статус пакетной обработки коллажей
+    async def create_batch_collages_with_layout(
+        images: list[ImageData],
+        layout: CollageLayout,
+        settings: CollageSettings,
+        directus_token: str | None = None,
+    ) -> list[str]:
+        """Создает несколько коллажей с пользовательским макетом."""
+        image_cells_count = sum(cell.type == "image" for cell in layout.cells)
 
-        Args:
-            category_names: Список названий категорий для фильтрации товаров
-
-        Returns:
-            Информация о статусе
-
-        """
-        if category_names:
-            log.info(
-                "Получение статуса пакетной обработки для категорий: %s",
-                category_names,
+        if image_cells_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="В макете нет ячеек для изображений",
             )
-        else:
-            log.info("Получение статуса пакетной обработки")
 
-        try:
-            # Получаем все изображения с товарами
-            all_images_db = await ImageService.get_all_images_with_products()
+        log.info(
+            "Пакетная генерация: %d изображений, %d ячеек на коллаж",
+            len(images),
+            image_cells_count,
+        )
 
-            if not all_images_db:
-                log.info("Products not found")
-                return CollageInfoResponse(
-                    total_images=0,
-                    total_batches=0,
-                    batch_size=16,
-                    has_images=False,
-                    categories=category_names,
-                    message="Products not found",
-                    products=None,
-                )
+        collage_paths: list[str] = []
+        total_collages = (len(images) + image_cells_count - 1) // image_cells_count
 
-            # Фильтруем по категориям, если указаны
-            if category_names:
-                all_images_db = [
-                    img
-                    for img in all_images_db
-                    if any(cat.name in category_names for cat in img.product.categories)
-                ]
-
-            if not all_images_db:
-                log.info("Products not found for categories: %s", category_names)
-                return CollageInfoResponse(
-                    total_images=0,
-                    total_batches=0,
-                    batch_size=16,
-                    has_images=False,
-                    categories=category_names,
-                    message=f"Products not found for categories: {category_names}",
-                    products=None,
-                )
-
-            total_images = len(all_images_db)
-            batch_size = 16
-            total_batches = (total_images + batch_size - 1) // batch_size
-
-            result = CollageInfoResponse(
-                total_images=total_images,
-                total_batches=total_batches,
-                batch_size=batch_size,
-                has_images=True,
-                categories=category_names,
-                message=f"Found {total_images} products in categories {category_names}. Can create {total_batches} collages with {batch_size} products each.",
-                products=None,
-            )
+        for collage_idx in range(total_collages):
+            start_idx = collage_idx * image_cells_count
+            end_idx = min(start_idx + image_cells_count, len(images))
+            batch_images = images[start_idx:end_idx]
 
             log.info(
-                "Статус получен: %s товаров, %s пакетов",
-                total_images,
-                total_batches,
+                "Генерация коллажа %d/%d: изображения %d-%d",
+                collage_idx + 1,
+                total_collages,
+                start_idx + 1,
+                end_idx,
             )
-            return result
 
-        except Exception as e:
-            log.exception("Ошибка при получении статуса: %s", e)
-            raise
+            collage_path = await CollageService.create_collage_with_layout(
+                batch_images,
+                layout,
+                settings,
+                directus_token,
+            )
+            collage_paths.append(collage_path)
 
-    @staticmethod
-    def cleanup_temp_files() -> dict:
-        """Очищает временные файлы коллажей
-
-        Returns:
-            Результат очистки
-
-        """
-        log.info("Очистка временных файлов коллажей")
-
-        try:
-            # Очищаем временные файлы в /tmp
-            temp_patterns = ["/tmp/collages_*", "/tmp/tmp*", "/tmp/*.jpg", "/tmp/*.zip"]
-
-            cleaned_files = []
-            cleaned_dirs = []
-
-            for pattern in temp_patterns:
-                try:
-                    # Удаляем файлы
-                    for file_path in glob.glob(pattern):
-                        if pathlib.Path(file_path).is_file():
-                            pathlib.Path(file_path).unlink()
-                            cleaned_files.append(file_path)
-
-                    # Удаляем папки
-                    for dir_path in glob.glob(pattern):
-                        if pathlib.Path(dir_path).is_dir():
-                            shutil.rmtree(dir_path)
-                            cleaned_dirs.append(dir_path)
-                except Exception as e:
-                    log.warning("Не удалось очистить шаблон %s: %s", pattern, e)
-
-            result = {
-                "cleaned_files": cleaned_files,
-                "cleaned_directories": cleaned_dirs,
-                "total_cleaned": len(cleaned_files) + len(cleaned_dirs),
-                "message": f"Очищено {len(cleaned_files)} файлов и {len(cleaned_dirs)} папок",
-            }
-
-            log.info(f"Очистка завершена: {result['total_cleaned']} элементов")
-            return result
-
-        except Exception as e:
-            log.exception("Ошибка при очистке временных файлов: %s", e)
-            raise
+        log.info("Пакетная генерация завершена: %d коллажей", len(collage_paths))
+        return collage_paths

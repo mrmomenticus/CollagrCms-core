@@ -1,437 +1,309 @@
 import logging
+import zipfile
+from io import BytesIO
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Cookie, HTTPException, Query, status
+from fastapi.background import BackgroundTasks
+from fastapi.responses import FileResponse, StreamingResponse
 
 from src.core.collages import CollageService
-from src.models.models import CollageInfoResponse
+from src.core.directus_client import DirectusClient
+from src.models.models import (
+    CollageRequest,
+    CollageWithLayoutRequest,
+    DirectusConfig,
+    ImageData,
+)
+from src.utils.config import config
 
 router = APIRouter(prefix="/v1/collage", tags=["collages"])
 log = logging.getLogger(__name__)
 
 
-@router.post("/")
-async def create_collage(
-    list_id: list[int] = Query(..., min_length=1, max_length=16),  # noqa: B008
-    is_price: bool = True,
-) -> FileResponse:
-    """Создает коллаж из выбранных изображений.
+def _get_directus_token(body_token: str | None, cookie_token: str | None) -> str | None:
+    """Извлекает Directus токен из body или cookie.
 
-    Args:
-        list_id: Список ID изображений (от 1 до 16)
-        is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
-
-    Returns:
-        Файл коллажа в формате JPEG
-
-    Raises:
-        HTTPException: 422 - Неверное количество изображений
-        HTTPException: 500 - Ошибка создания коллажа
-
+    Priority: body token > cookie token
     """
-    if not (1 <= len(list_id) <= 16):
-        error_msg = (
-            f"Количество изображений должно быть от 1 до 16, получено: {len(list_id)}"
+    if body_token:
+        log.debug("Using directus_token from request body")
+        return body_token
+    if cookie_token:
+        log.debug("Using directus_token from cookie")
+        return cookie_token
+    log.warning("No directus_token found in body or cookie")
+    return None
+
+
+def _cleanup_file(path: str) -> None:
+    """Удаляет файл если он существует."""
+    try:
+        Path(path).unlink(missing_ok=True)
+        log.debug("Файл коллажа удален: %s", path)
+    except Exception as e:
+        log.warning("Не удалось удалить файл коллажа %s: %s", path, e)
+
+
+@router.post("/generate")
+async def generate_collage_from_data(
+    request: CollageRequest,
+    background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
+) -> FileResponse:
+    """Генерирует коллаж из переданных данных об изображениях."""
+    log.info("API запрос: генерация коллажа из %d изображений", len(request.images))
+
+    token = _get_directus_token(request.directus_token, directus_session_token)
+    collage_path = await CollageService.create_collage_from_data(
+        request.images,
+        request.is_price,
+        token,
+    )
+    log.info("API ответ: коллаж создан по пути %s", collage_path)
+
+    background_tasks.add_task(_cleanup_file, collage_path)
+
+    return FileResponse(
+        collage_path,
+        media_type="image/jpeg",
+        filename="collage.jpg",
+    )
+
+
+@router.post("/generate/with-layout")
+async def generate_collage_with_layout(
+    request: CollageWithLayoutRequest,
+    background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
+) -> FileResponse:
+    """Генерирует коллаж с пользовательским макетом."""
+    log.info(
+        "API запрос: генерация коллажа с макетом (%d изображений, %d ячеек)",
+        len(request.images),
+        len(request.layout.cells),
+    )
+
+    token = _get_directus_token(request.directus_token, directus_session_token)
+    collage_path = await CollageService.create_collage_with_layout(
+        request.images,
+        request.layout,
+        request.settings,
+        token,
+    )
+    log.info("API ответ: коллаж с макетом создан по пути %s", collage_path)
+
+    background_tasks.add_task(_cleanup_file, collage_path)
+
+    return FileResponse(
+        collage_path,
+        media_type="image/jpeg",
+        filename="collage.jpg",
+    )
+
+
+@router.post("/generate/from-directus")
+async def generate_collage_from_directus(
+    directus_url: str = Query(..., description="URL Directus API"),
+    directus_token: str | None = Query(None, description="Токен авторизации"),
+    directus_email: str | None = Query(None, description="Email для авторизации"),
+    directus_password: str | None = Query(None, description="Пароль для авторизации"),
+    product_ids: list[int] | None = Query(None, description="Список ID продуктов"),
+    category_ids: list[int] | None = Query(None, description="Список ID категорий"),
+    is_price: bool = Query(True, description="Добавлять ли цену на оверлей"),
+    directus_session_token: str | None = Cookie(None),
+) -> FileResponse:
+    """Генерирует коллаж, получая данные напрямую из Directus."""
+    log.info(
+        "API запрос: генерация коллажа из Directus (продукты: %s, категории: %s)",
+        product_ids,
+        category_ids,
+    )
+
+    token = _get_directus_token(directus_token, directus_session_token)
+    directus_config = DirectusConfig(
+        url=directus_url,
+        token=token,
+        email=directus_email,
+        password=directus_password,
+    )
+
+    client = DirectusClient(directus_config)
+
+    products = await client.get_products_with_images(
+        product_ids=product_ids,
+        category_ids=category_ids,
+    )
+
+    if not products:
+        raise HTTPException(
+            status_code=404,
+            detail="Продукты не найдены в Directus",
         )
-        log.warning(error_msg)
-        raise HTTPException(status_code=422, detail=error_msg)
+
+    images: list[ImageData] = []
+    for product in products:
+        product_files = product.get("product_files", [])
+        for pf in product_files:
+            file_id = pf.get("directus_files_id")
+            if not file_id:
+                continue
+
+            file_id_value = file_id.get("id") if isinstance(file_id, dict) else file_id
+            category = product.get("category", {})
+            categories = [category["name"]] if category and category.get("name") else []
+
+            images.append(
+                ImageData(
+                    id=pf["id"],
+                    url=f"{config.get_directus_url()}/assets/{file_id_value}",
+                    product_id=product["id"],
+                    product_name=product.get("name", ""),
+                    product_price=product.get("price", 0),
+                    product_description=product.get("description", ""),
+                    categories=categories,
+                )
+            )
+
+    if not images:
+        raise HTTPException(
+            status_code=404,
+            detail="Изображения не найдены в Directus",
+        )
+
+    if len(images) > 16:
+        images = images[:16]
+        log.warning("Количество изображений ограничено до 16")
+
+    collage_path = await CollageService.create_collage_from_data(
+        images, is_price, directus_token
+    )
+    log.info("API ответ: коллаж создан по пути %s", collage_path)
+
+    return FileResponse(
+        collage_path,
+        media_type="image/jpeg",
+        filename="collage.jpg",
+    )
+
+
+@router.post("/generate/batch", response_model=None)
+async def generate_batch_collages(
+    requests: list[CollageWithLayoutRequest],
+    background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
+) -> FileResponse | StreamingResponse:
+    """Генерирует несколько коллажей и возвращает архив."""
+    log.info("API запрос: пакетная генерация %d коллажей", len(requests))
+
+    if not requests:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Список запросов пуст",
+        )
+
+    collage_paths: list[tuple[str, str]] = []
 
     try:
-        collage_path = await CollageService.create_collage_by_ids(
-            list_id,
-            "collage.jpg",
-            is_price,
+        for idx, req in enumerate(requests, start=1):
+            log.info(
+                "Генерация коллажа %d/%d (%d изображений, %d ячеек)",
+                idx,
+                len(requests),
+                len(req.images),
+                len(req.layout.cells),
+            )
+
+            token = _get_directus_token(req.directus_token, directus_session_token)
+            collage_path = await CollageService.create_collage_with_layout(
+                req.images,
+                req.layout,
+                req.settings,
+                token,
+            )
+            collage_paths.append((f"collage_{idx}.jpg", collage_path))
+            log.info("Коллаж %d создан: %s", idx, collage_path)
+
+        if len(collage_paths) == 1:
+            single_path = collage_paths[0][1]
+            background_tasks.add_task(_cleanup_file, single_path)
+            return FileResponse(
+                single_path,
+                media_type="image/jpeg",
+                filename="collage.jpg",
+            )
+
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for filename, filepath in collage_paths:
+                zip_file.write(filepath, filename)
+                background_tasks.add_task(_cleanup_file, filepath)
+
+        zip_buffer.seek(0)
+
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={"Content-Disposition": "attachment; filename=collages.zip"},
         )
-        log.info("API ответ: коллаж создан по пути %s", collage_path)
+
+    except HTTPException:
+        for _, path in collage_paths:
+            _cleanup_file(path)
+        raise
+
+
+@router.post("/generate/batch-auto", response_model=None)
+async def generate_batch_auto(
+    request: CollageWithLayoutRequest,
+    background_tasks: BackgroundTasks,
+    directus_session_token: str | None = Cookie(None),
+) -> FileResponse | StreamingResponse:
+    """Генерирует несколько коллажей автоматически."""
+    log.info(
+        "API запрос: автопакетная генерация (%d изображений)",
+        len(request.images),
+    )
+
+    if not request.images:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Список изображений пуст",
+        )
+
+    token = _get_directus_token(request.directus_token, directus_session_token)
+    log.info("directus_token: %s", "присутствует" if token else "ОТСУТСТВУЕТ")
+
+    collage_paths = await CollageService.create_batch_collages_with_layout(
+        request.images,
+        request.layout,
+        request.settings,
+        token,
+    )
+
+    collage_paths_with_names = [
+        (f"collage_{idx + 1}.jpg", path) for idx, path in enumerate(collage_paths)
+    ]
+
+    for _, path in collage_paths_with_names:
+        background_tasks.add_task(_cleanup_file, path)
+
+    if len(collage_paths) == 1:
         return FileResponse(
-            collage_path,
+            collage_paths[0],
             media_type="image/jpeg",
             filename="collage.jpg",
         )
-    except Exception as e:
-        log.exception("API ошибка при создании коллажа: %s", e)
-        raise HTTPException(status_code=500, detail="Ошибка создания коллажа") from e
 
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for filename, filepath in collage_paths_with_names:
+            zip_file.write(filepath, filename)
 
-@router.get("/", response_model=CollageInfoResponse)
-async def get_all_product_for_collage() -> CollageInfoResponse:
-    """Возвращает все доступные товары для создания коллажей.
+    zip_buffer.seek(0)
 
-    Returns:
-        JSON с информацией о всех товарах и возможностях создания коллажей
-
-    Raises:
-        HTTPException: 500 - Ошибка получения продуктов
-        HTTPException: 404 - Продукты не найдены
-
-    """
-    log.info("API запрос: получение всех продуктов для коллажа")
-    try:
-        result = await CollageService.get_all_products_info()
-        if not result:
-            raise HTTPException(
-                status_code=404,
-                detail="Товары не найдены",
-            )
-        log.info("API ответ: получена информация о %d продуктах", result.total_images)
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.exception("API ошибка при получении всех продуктов: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка получения всех продуктов",
-        ) from e
-
-
-@router.get("/categories/", response_model=CollageInfoResponse)
-async def get_products_by_categories(category_names: list[str]) -> CollageInfoResponse:
-    """Возвращает товары по заданным категориям для создания коллажей.
-
-    Args:
-        category_names: Список названий категорий для фильтрации
-
-    Returns:
-        JSON с информацией о товарах и возможностях создания коллажей
-
-    Raises:
-        HTTPException: 500 - Ошибка получения продуктов по категориям
-
-    """
-    log.info("API запрос: получение продуктов по категориям %s", category_names)
-    try:
-        result = await CollageService.get_products_by_categories(category_names)
-        log.info(
-            "API ответ: получена информация о %d продуктах по категориям",
-            result.total_images,
-        )
-        return result
-    except Exception as e:
-        log.exception("API ошибка при получении продуктов по категориям: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка получения продуктов по категориям",
-        ) from e
-
-
-@router.get("/batch/")
-async def create_batch_collage(
-    batch_size: int = Query(default=16, ge=1, le=16),
-    start_index: int = Query(default=0, ge=0),
-    is_price: bool = True,
-    category_names: list[str] | None = None,
-):
-    """Создает коллаж из текущего пакета товаров (по умолчанию 16 штук)
-    Используется для кнопки "Дальше" - создает следующий коллаж и сразу отправляет его пользователю.
-    Args:
-        batch_size: Размер пакета (по умолчанию 16)
-        start_index: Начальный индекс для обработки
-        is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
-        category_names: Список названий категорий для фильтрации.
-    Returns:
-        Файл коллажа для скачивания
-    Raises:
-        HTTPException: 500 - Ошибка создания коллажа пакета.
-    """  # noqa: D205
-    log.info(
-        "API запрос: создание коллажа пакета (размер: %d, индекс: %d, категория: %s)",
-        batch_size,
-        start_index,
-        category_names if category_names else "all",
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=collages.zip"},
     )
-    try:
-        collage_path, batch_info = await CollageService.create_batch_collage(
-            batch_size,
-            start_index,
-            is_price,
-            category_names,
-        )
-
-        # Отправляем файл пользователю для скачивания
-        # Убедимся, что имя файла не содержит кириллических символов
-        safe_filename = batch_info["filename"].encode('utf-8').decode('utf-8', errors='ignore')
-        response = FileResponse(
-            collage_path,
-            media_type="image/jpeg",
-            filename=safe_filename,
-            headers={
-                "X-Collage-Batch": str(batch_info["batch_number"]),
-                "X-Collage-Total-Batches": str(batch_info["total_batches"]),
-                "X-Collage-Processed-Images": str(batch_info["processed_images"]),
-                "X-Collage-Total-Images": str(batch_info["total_images"]),
-                "X-Collage-Start-Index": str(batch_info["start_index"]),
-                "X-Collage-End-Index": str(batch_info["end_index"]),
-                "X-Collage-Has-More": str(batch_info["has_more"]),
-                "X-Collage-Next-Start-Index": str(batch_info["next_start_index"]),
-                # Добавляем информацию о категориях в заголовки, если они указаны
-                # Избегаем кириллицы в заголовках, кодируем в ASCII
-                "X-Collage-Categories": str(len(category_names)) + "_categories"
-                if category_names
-                else "all",
-                # Убираем кириллицу из заголовков
-                "X-Collage-Message": f"Batch {batch_info['batch_number']} of {batch_info['total_batches']} (images {batch_info['start_index'] + 1}-{batch_info['end_index']} of {batch_info['total_images']})",
-            },
-        )
-
-        log.info("API ответ: коллаж пакета создан %s", batch_info["filename"])
-        return response
-
-    except HTTPException as e:
-        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
-        raise e
-    except Exception as e:
-        log.exception("API ошибка при создании коллажа пакета: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка создания коллажа пакета",
-        ) from e
-
-
-@router.get("/batch/all/")
-async def create_all_collage_info(
-    batch_size: int = Query(default=16, ge=1, le=16),
-    category_names: list[str] | None = None,
-):
-    """Создает все коллажи из всех товаров, обрабатывая их пакетами
-    Используется для кнопки "Выбрать все" - создает все коллажи сразу. Если есть category_names, то создает коллажи только по ним.
-
-    Args:
-        batch_size: Размер пакета (по умолчанию 16)
-        category_names: Список названий категорий для фильтрации
-
-    Returns:
-        JSON с информацией о всех созданных коллажах
-
-    Raises:
-        HTTPException: 404 - Товары не найдены
-        HTTPException: 500 - Ошибка получения информации о всех коллажах
-
-    """
-    log.info(
-        "API запрос: получение информации о создании всех коллажей (размер пакета: %d, категории: %s)",
-        batch_size,
-        category_names if category_names else "all",
-    )
-
-    try:
-        if category_names:
-            result = await CollageService.get_products_by_categories(category_names)
-        else:
-            result = await CollageService.get_all_products_info()
-
-        if not result or not result.has_images:
-            log.warning("Товары не найдены для создания коллажей")
-            raise HTTPException(status_code=404, detail="Товары не найдены")
-
-        # Возвращаем информацию о том, что можно создать
-        creation_info = {
-            "total_batches": result.total_batches,
-            "total_images": result.total_images,
-            "batch_size": batch_size,
-            "categories": result.categories,
-            "message": f"Можно создать {result.total_batches} коллажей из {result.total_images} товаров в категориях {result.categories}",
-        }
-
-        log.info(
-            "API ответ: информация о создании %d коллажей",
-            creation_info["total_batches"],
-        )
-        return creation_info
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.exception("API ошибка при получении информации о всех коллажах: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка получения информации о всех коллажах",
-        ) from e
-
-
-@router.get("/batch/all/download/")
-async def create_and_dowload_all_collages(
-    batch_size: int = Query(default=16, ge=1, le=16),
-    is_price: bool = True,
-    category_names: list[str] = Query(
-        None,
-        description="Список названий категорий для фильтрации",
-    ),
-):
-    """Создает все коллажи из всех товаров и отправляет их пользователю в виде ZIP-архива
-    Используется для кнопки "Выбрать все" - создает все коллажи и сразу отправляет для скачивания
-
-    Args:
-        batch_size: Размер пакета (по умолчанию 16)
-        is_price: Флаг, указывающий, нужно ли добавлять цену на оверлей
-        category_names: Список названий категорий для фильтрации
-
-    Returns:
-        ZIP-архив со всеми созданными коллажами
-
-    Raises:
-        HTTPException: 500 - Ошибка создания и скачивания всех коллажей
-
-    """
-    log.info(
-        "API запрос: создание и скачивание всех коллажей (размер пакета: %d, категории: %s)",
-        batch_size,
-        category_names if category_names else "all",
-    )
-    try:
-        zip_path, creation_info = await CollageService.create_all_collages_zip(
-            batch_size,
-            is_price,
-            category_names,
-        )
-
-        # Отправляем ZIP-файл пользователю
-        # Убедимся, что имя файла не содержит кириллических символов
-        safe_filename = creation_info["zip_filename"].encode('utf-8').decode('utf-8', errors='ignore')
-        response = FileResponse(
-            zip_path,
-            media_type="application/zip",
-            filename=safe_filename,
-            headers={
-                "X-Collage-Total-Batches": str(creation_info["total_batches"]),
-                "X-Collage-Total-Images": str(creation_info["total_images"]),
-                "X-Collage-Batch-Size": str(creation_info["batch_size"]),
-                "X-Collage-Categories": str(len(category_names)) + "_categories"
-                if category_names
-                else "all",
-                # Убираем кириллицу из заголовков, чтобы избежать проблем с кодировкой
-                "X-Collage-Message": f"Created {creation_info['total_batches']} collages from {creation_info['total_images']} images",
-            },
-        )
-
-        log.info(
-            "API ответ: ZIP-архив с коллажами создан %s",
-            creation_info["zip_filename"],
-        )
-        return response
-
-    except HTTPException as e:
-        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
-        raise e
-    except Exception as e:
-        log.exception("API ошибка при создании и скачивании всех коллажей: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка создания и скачивания всех коллажей",
-        ) from e
-
-
-@router.get("/batch/status/", response_model=CollageInfoResponse)
-async def get_batch_processing_status(
-    category_names: list[str] = Query(
-        None,
-        description="Список названий категорий для фильтрации",
-    ),
-) -> CollageInfoResponse:
-    """Возвращает статус пакетной обработки коллажей
-
-    Args:
-        category_names: Список названий категорий для фильтрации
-
-    Returns:
-        JSON с информацией о статусе
-
-    Raises:
-        HTTPException: 500 - Ошибка получения статуса
-
-    """
-    log.info(
-        "API запрос: получение статуса пакетной обработки (категории: %s)",
-        category_names if category_names else "all",
-    )
-    try:
-        result = await CollageService.get_batch_processing_status(category_names)
-        log.info("API ответ: статус получен (%d товаров)", result.total_images)
-        return result
-    except Exception as e:
-        log.exception("API ошибка при получении статуса пакетной обработки: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка получения статуса пакетной обработки",
-        ) from e
-
-
-@router.get("/batch/info/")
-async def get_batch_info(
-    start_index: int = Query(default=0, ge=0),
-    batch_size: int = Query(default=16, ge=1, le=16),
-    category_names: list[str] = Query(
-        None,
-        description="Список названий категорий для фильтрации",
-    ),
-):
-    """Возвращает информацию о текущем пакете товаров без создания коллажа
-    Используется для получения информации перед созданием коллажа
-
-    Args:
-        start_index: Начальный индекс для обработки
-        batch_size: Размер пакета (по умолчанию 16)
-        category_names: Список названий категорий для фильтрации
-
-    Returns:
-        JSON с информацией о текущем пакете
-
-    Raises:
-        HTTPException: 500 - Ошибка получения информации о пакете
-
-    """
-    log.info(
-        "API запрос: получение информации о пакете (индекс: %d, размер: %d, категории: %s)",
-        start_index,
-        batch_size,
-        category_names if category_names else "all",
-    )
-    try:
-        result = await CollageService.get_batch_info(
-            start_index,
-            batch_size,
-            category_names,
-        )
-
-        log.info(
-            "API ответ: информация о пакете %d/%d",
-            result["current_batch"],
-            result["total_batches"],
-        )
-        return result
-
-    except HTTPException as e:
-        log.warning("API ошибка: %s", getattr(e, "detail", str(e)))
-        raise e
-    except Exception as e:
-        log.exception("API ошибка при получении информации о пакете: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка получения информации о пакете",
-        ) from e
-
-
-@router.post("/cleanup/")
-async def cleanup_temp_files():
-    """Очищает временные файлы коллажей
-
-    Returns:
-        JSON с результатом очистки
-
-    Raises:
-        HTTPException: 500 - Ошибка очистки временных файлов
-
-    """
-    log.info("API запрос: очистка временных файлов")
-    try:
-        result = CollageService.cleanup_temp_files()
-
-        log.info("API ответ: очищено %d элементов", result["total_cleaned"])
-        return result
-
-    except Exception as e:
-        log.exception("API ошибка при очистке временных файлов: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Ошибка очистки временных файлов",
-        ) from e

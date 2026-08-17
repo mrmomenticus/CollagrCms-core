@@ -1,21 +1,30 @@
-# Используем официальный образ Python 3.13 slim
 FROM python:3.13-slim
 
-# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы зависимостей
-COPY pyproject.toml uv.lock ./
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    fonts-dejavu-core \
+    fonts-liberation \
+    fonts-noto \
+    && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем зависимости
-RUN pip install --no-cache-dir uv && uv pip install --system -e .
+RUN pip install uv
 
-# Копируем весь код приложения
 COPY . .
-COPY --from=ghcr.io/astral-sh/uv:0.9.10 /uv /uvx /bin/
 
-# Открываем порт 8000
+RUN rm -rf /app/.venv && \
+    uv venv /app/.venv && \
+    VIRTUAL_ENV=/app/.venv uv sync --frozen --no-dev
+
+ENV PYTHONPATH=/app
+ENV SERVER_HOST=0.0.0.0
+ENV SERVER_PORT=8000
+
 EXPOSE 8000
 
-# Запускаем приложение
-CMD ["uv run", "-m", "src"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["/app/.venv/bin/uvicorn", "src.__main__:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
